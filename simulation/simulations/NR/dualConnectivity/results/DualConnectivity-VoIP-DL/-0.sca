@@ -1,0 +1,82 @@
+version 3
+run DualConnectivity-VoIP-DL-0-20230212-09:58:38-22800
+attr configname DualConnectivity-VoIP-DL
+attr datetime 20230212-09:58:38
+attr datetimef 20230212-095838
+attr experiment DualConnectivity-VoIP-DL
+attr inifile omnetpp.ini
+attr iterationvars ""
+attr iterationvarsd ""
+attr iterationvarsf ""
+attr measurement ""
+attr network simu5g.simulations.NR.networks.SingleCell_withSecondaryGnb
+attr processid 22800
+attr repetition 0
+attr replication #0
+attr resultdir results
+attr runnumber 0
+attr seedset 0
+config image-path ../../../images;../../../../inet4.4/images
+config extends DualConnectivity
+config description "Base configuration, do not run this config!"
+config *.ue[*].numApps 1
+config *.server.numApps 1
+config *.ue[*].app[*].typename VoIPReceiver
+config *.ue[*].app[*].localPort 3000+ancestorIndex(0)
+config *.server.app[*].typename VoIPSender
+config *.server.app[*].PacketSize 40
+config *.server.app[*].destAddress "\"ue[0]\""
+config *.server.app[*].localPort 3088+ancestorIndex(0)
+config *.server.app[*].destPort 3000+ancestorIndex(0)
+config *.server.app[*].startTime uniform(0s,0.02s)
+config network simu5g.simulations.NR.networks.SingleCell_withSecondaryGnb
+config sim-time-limit 20s
+config description "Base configuration, do not run this config!"
+config *.masterEnb.mobility.initialX 300m
+config *.masterEnb.mobility.initialY 300m
+config *.secondaryGnb.mobility.initialX 600m
+config *.secondaryGnb.mobility.initialY 300m
+config *.masterEnb.nicType "\"LteNicEnbD2D\""
+config *.masterEnb.cellularNic.LtePdcpRrcType "\"NRPdcpRrcEnb\""
+config *.secondaryGnb.masterId 1
+config **.dualConnectivityEnabled true
+config *.*nb.numX2Apps 1
+config *.*nb.x2App[*].server.localPort "5000 + ancestorIndex(1)"
+config *.masterEnb.x2App[0].client.connectAddress "\"secondaryGnb%x2ppp0\""
+config *.secondaryGnb.x2App[0].client.connectAddress "\"masterEnb%x2ppp0\""
+config *.numUe 1
+config *.ue[0].macCellId 1
+config *.ue[0].masterId 1
+config *.ue[0].nrMacCellId 2
+config *.ue[0].nrMasterId 2
+config *.ue[0].mobility.initialX 450m
+config *.ue[0].mobility.initialY 350m
+config image-path ../../../images
+config output-scalar-file-append false
+config sim-time-limit 20s
+config seed-set 0
+config output-scalar-file results/DualConnectivity-VoIP-DL/-0.sca
+config output-vector-file results/DualConnectivity-VoIP-DL/-0.vec
+config **.vector-recording false
+config **.sctp.**.scalar-recording false
+config **.sctp.**.vector-recording false
+config **.routingRecorder.enabled false
+config **.mobility.constraintAreaMaxX 1000m
+config **.mobility.constraintAreaMaxY 1000m
+config **.mobility.constraintAreaMinX 0m
+config **.mobility.constraintAreaMinY 0m
+config **.mobility.constraintAreaMinZ 0m
+config **.mobility.constraintAreaMaxZ 0m
+config **.mobility.initFromDisplayString false
+config **.numBands 50
+config **.ueTxPower 26
+config **.eNodeBTxPower 40
+config **.targetBler 0.01
+config **.blerShift 5
+config **.sctp.nagleEnabled false
+config **.sctp.enableHeartbeats false
+config *.configurator.config "xmldoc(\"./demo.xml\")"
+
+scalar SingleCell_withSecondaryGnb.masterEnb.x2App[0].client ums 1452
+scalar SingleCell_withSecondaryGnb.secondaryGnb.x2App[0].client ums 1452
+

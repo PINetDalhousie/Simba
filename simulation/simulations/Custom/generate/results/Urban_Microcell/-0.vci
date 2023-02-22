@@ -1,0 +1,261 @@
+file 1091234 1676898503                                         
+version 3
+run Urban_Microcell-0-20230220-15:04:53-23676
+attr configname Urban_Microcell
+attr datetime 20230220-15:04:53
+attr datetimef 20230220-150453
+attr experiment Urban_Microcell
+attr inifile omnetpp.ini
+attr iterationvars ""
+attr iterationvarsd ""
+attr iterationvarsf ""
+attr measurement ""
+attr network Network
+attr processid 23676
+attr repetition 0
+attr replication #0
+attr resultdir results
+attr runnumber 0
+attr seedset 0
+config image-path ../../../images;../../../../inet4.4/images
+config extends General
+config description "Scenario: Urban Microcell"
+config **.scenario "\"URBAN_MICROCELL\""
+config network Network
+config description "Dual connectivity, secondary only with handover, Voice-over-IP (downlink)"
+config image-path ../../../images
+config output-scalar-file-append false
+config output-vector-file-append false
+config sim-time-limit 200s
+config seed-set 0
+config output-scalar-file results/Urban_Microcell/-0.sca
+config output-vector-file results/Urban_Microcell/-0.vec
+config **.positionX:vector.vector-recording true
+config **.positionY:vector.vector-recording true
+config **.servingRSRP:vector.vector-recording true
+config **.servingSINR:vector.vector-recording true
+config **.servingDistance:vector.vector-recording true
+config **.neighborTop1RSRP:vector.vector-recording true
+config **.neighborTop1SINR:vector.vector-recording true
+config **.neighborTop1Distance:vector.vector-recording true
+config **.neighborTop2RSRP:vector.vector-recording true
+config **.neighborTop2SINR:vector.vector-recording true
+config **.neighborTop2Distance:vector.vector-recording true
+config **.nrPhy.averageCqiDl:vector.vector-recording true
+config **.nrRlc.um.rlcThroughputDl:vector.vector-recording true
+config **.nrMac.macThroughputDl:vector.vector-recording true
+config **.voIPReceivedThroughput:vector.vector-recording true
+config **.ue[*].cellularNic.nrPhy.hysteresisFactor.param-record-as-scalar true
+config **.hysteresisFactor.scalar-recording true
+config **.scalar-recording false
+config **.vector-recording false
+config *.channelControl.carrierFrequency 39GHz
+config *.channelControl.numChannels 8
+config *.channelControl.pMax 20mW
+config *.channelControl.sat -110dBm
+config *.channelControl.alpha 2
+config *.channelControl.propagationModel "\"RiceModel\""
+config *.carrierAggregation.numComponentCarriers 1
+config *.carrierAggregation.componentCarrier[*].numBands 6
+config *.carrierAggregation.componentCarrier[*].numerologyIndex 0
+config *.carrierAggregation.componentCarrier[*].useTdd false
+config *.binder.blerShift 0
+config *.binder.maxDataRatePerRb 1.16Mbps
+config *.masterEnb.txPower 100mw
+config *.gnb*.cellInfo.microCell true
+config **.ueTxPower 26
+config **.eNodeBTxPower 46
+config **.microTxPower 30
+config **.txDirection "\"OMNI\""
+config **.txAngle 0
+config **.targetBler 0.01
+config *.masterEnb.nicType "\"LteNicEnbD2D\""
+config *.masterEnb.cellularNic.LtePdcpRrcType "\"NRPdcpRrcEnb\""
+config *.gnb*.masterId 1
+config **.dualConnectivityEnabled true
+config **.numCarriers 1
+config **.numNRCarriers 1
+config **.shadowing true
+config **.nodeb_height 25
+config **.building_height 20
+config **.inside_building false
+config **.street_wide 20
+config **.ue_height 1.5
+config **.tolerateMaxDistViolation false
+config **.correlation_distance 50
+config **.antennaGainUe 0
+config **.antennGainEnB 18
+config **.antennGainMicro 5
+config **.thermalNoise -104.5
+config **.ue_noise_figure 7
+config **.bs_noise_figure 5
+config **.cable_loss 2
+config **.dynamic_los false
+config **.fixed_los false
+config **.fading true
+config **.fading_type "\"JAKES\""
+config **.fading_paths 6
+config **.delay_rms 363e-9
+config **.bgCell_interference true
+config **.extCell_interference true
+config **.downlink_interference true
+config **.uplink_interference true
+config **.enable_extCell_los false
+config **.useBuildingPenetrationLossHighLossModel false
+config *.numBgCells 1
+config *.bgCell[*].bgScheduler.isNr true
+config *.bgCell[*].bgScheduler.txPower 46
+config *.bgCell[*].bgScheduler.txDirection "\"OMNI\""
+config *.bgCell[*].bgScheduler.txAngle 0
+config *.bgCell[*].bgScheduler.numerologyIndex 0
+config *.bgCell[*].bgScheduler.carrierFrequency 2GHz
+config *.bgCell[*].bgScheduler.numBands 6
+config *.bgCell[*].mobility.initialX 235m
+config *.bgCell[*].mobility.initialY 120m
+config *.bgCell[*].bgTrafficGenerator.numBgUes 50
+config *.bgCell[*].bgTrafficGenerator.computeAvgInterference true
+config *.bgCell[*].bgTrafficGenerator.bgUE[*].mobility.initialX normal(235m,120m)
+config *.bgCell[*].bgTrafficGenerator.bgUE[*].mobility.initialY normal(235m,120m)
+config *.bgCell[*].bgTrafficGenerator.bgUE[*].trafficGeneratorType "\"TrafficGeneratorCbr\""
+config *.bgCell[*].bgTrafficGenerator.bgUE[*].generator.startTimeDl uniform(0s,0.05s)
+config *.bgCell[*].bgTrafficGenerator.bgUE[*].generator.packetSizeDl 1000B
+config *.bgCell[*].bgTrafficGenerator.bgUE[*].generator.periodDl 0.01s
+config *.configurator.config "xmldoc(\"./demo.xml\")"
+config **.sctp.nagleEnabled false
+config **.sctp.enableHeartbeats false
+config *.masterEnb.numX2Apps 5
+config *.gnb*.numX2Apps 1
+config **.x2App[*].server.localPort "5000 + ancestorIndex(1)"
+config *.masterEnb.x2App[0].client.connectAddress "\"gnb152%x2ppp0\""
+config *.masterEnb.x2App[1].client.connectAddress "\"gnb425%x2ppp0\""
+config *.masterEnb.x2App[2].client.connectAddress "\"gnb508%x2ppp0\""
+config *.masterEnb.x2App[3].client.connectAddress "\"gnb686%x2ppp0\""
+config *.masterEnb.x2App[4].client.connectAddress "\"gnb907%x2ppp0\""
+config *.gnb152.x2App[0].client.connectAddress "\"masterEnb%x2ppp0\""
+config *.gnb425.x2App[0].client.connectAddress "\"masterEnb%x2ppp1\""
+config *.gnb508.x2App[0].client.connectAddress "\"masterEnb%x2ppp2\""
+config *.gnb686.x2App[0].client.connectAddress "\"masterEnb%x2ppp3\""
+config *.gnb907.x2App[0].client.connectAddress "\"masterEnb%x2ppp4\""
+config **.dynamicCellAssociation true
+config *.numUe 1
+config *.ue[*].masterId 1
+config *.ue[*].macCellId 1
+config *.ue[*].nrMasterId 2
+config *.ue[*].nrMacCellId 2
+config *.ue[*].mobility.typename RectangleMobility
+config *.ue[*].mobility.speed 30mps
+config *.ue[*].mobility.startPos 3
+config *.ue[*].mobility.constraintAreaMaxX 370m
+config *.ue[*].mobility.constraintAreaMaxY 200m
+config *.ue[*].mobility.constraintAreaMinX 80m
+config *.ue[*].mobility.constraintAreaMinY 60m
+config *.ue[*].mobility.constraintAreaMinZ 0m
+config *.ue[*].mobility.constraintAreaMaxZ 0m
+config *.gnb*.cellularNic.phy.enableHandover true
+config *.ue[*].cellularNic.nrPhy.enableHandover true
+config **.handoverLatency 0.05s
+config **.hysteresisFactor 10
+config **.losslessHandover false
+config *.ue[*].numApps 1
+config *.ue[*].app[*].typename VoIPReceiver
+config *.ue[*].app[*].localPort 3000+ancestorIndex(0)
+config *.server.numApps 1
+config *.server.app[*].typename VoIPSender
+config *.server.app[*].PacketSize 40
+config *.server.app[*].destAddress "\"ue[0]\""
+config *.server.app[*].localPort 3088+ancestorIndex(0)
+config *.server.app[*].destPort 3000+ancestorIndex(0)
+config *.server.app[*].startTime uniform(0s,0.02s)
+config *.server.app[*].tos 10
+
+vector 0 Network.ue[0].cellularNic.nrPhy averageCqiDl:vector ETV
+attr recordingmode vector
+attr source averageCqiDl
+attr title "Average Cqi reported in DL"
+attr unit cqi
+vector 1 Network.ue[0] positionX:vector ETV
+attr recordingmode vector
+attr source positionX
+attr title "Current X position"
+attr unit m
+vector 2 Network.ue[0] positionY:vector ETV
+attr recordingmode vector
+attr source positionY
+attr title "Current Y position"
+attr unit m
+vector 3 Network.ue[0] servingRSRP:vector ETV
+attr recordingmode vector
+attr source servingRSRP
+attr title "RSRP of serving cell measured at dynamic cell association"
+attr unit dBm
+vector 4 Network.ue[0] servingSINR:vector ETV
+attr recordingmode vector
+attr source servingSINR
+attr title "SINR of serving cell measured at dynamic cell association"
+attr unit dBm
+vector 5 Network.ue[0] servingDistance:vector ETV
+attr recordingmode vector
+attr source servingDistance
+attr title "distance between UE and serving base station measured at dynamic cell association"
+attr unit meters
+vector 6 Network.ue[0] neighborTop1RSRP:vector ETV
+attr recordingmode vector
+attr source neighborTop1RSRP
+attr title "RSRP of top1 neighboring cell measured at handover frame reception"
+attr unit dBm
+vector 7 Network.ue[0] neighborTop2RSRP:vector ETV
+attr recordingmode vector
+attr source neighborTop2RSRP
+attr title "RSRP of top2 neighboring cell measured at handover frame reception"
+attr unit dBm
+vector 8 Network.ue[0] neighborTop1SINR:vector ETV
+attr recordingmode vector
+attr source neighborTop1SINR
+attr title "SINR of top1 neighboring cell measured at handover frame reception"
+attr unit dBm
+vector 9 Network.ue[0] neighborTop2SINR:vector ETV
+attr recordingmode vector
+attr source neighborTop2SINR
+attr title "SINR of top2 neighboring cell measured at handover frame reception"
+attr unit dBm
+vector 10 Network.ue[0] neighborTop1Distance:vector ETV
+attr recordingmode vector
+attr source neighborTop1Distance
+attr title "distance to top1 neighboring cell measured at handover frame reception"
+attr unit meters
+vector 11 Network.ue[0] neighborTop2Distance:vector ETV
+attr recordingmode vector
+attr source neighborTop2Distance
+attr title "distance to top2 neighboring cell measured at handover frame reception"
+attr unit meters
+vector 12 Network.ue[0].cellularNic.nrMac macThroughputDl:vector ETV
+attr recordingmode vector
+attr source macThroughputDl
+attr title "Throughput at the MAC layer DL"
+attr unit Bps
+vector 13 Network.ue[0].cellularNic.nrRlc.um rlcThroughputDl:vector ETV
+attr recordingmode vector
+attr source rlcThroughputDl
+attr title "Throughput at the rlc layer DL"
+attr unit Bps
+vector 14 Network.ue[0].app[0] voIPReceivedThroughput:vector ETV
+attr recordingmode vector
+attr source voIPReceivedThroughput
+attr title "Throughput received at the application level"
+attr unit Bps
+0	10125 52099 987 912591 0.018 28.497 2779 1 15 9388 52188
+1	62224 62193 987 912591 0.018 28.497 2779 80 370 750524.33074585 226156509.32879
+2	124417 58498 987 912591 0.018 28.497 2779 60 200 370834.80332467 60482239.455885
+3	182915 93381 987 912591 0.018 28.497 2779 -75.077378660709 5.5086978646552 -135289.87444483 6888274.2992739
+4	276296 92873 987 912591 0.018 28.497 2779 -35.104147404109 58.110657445294 -19849.576849312 566514.54293847
+5	369169 90085 987 912591 0.018 28.497 2779 2.2360679774998 193.98098463509 212615.2732816 20888573.540795
+6	459254 93376 987 912591 0.018 28.497 2779 -75.388752667153 -33.441577495528 -154964.6544265 8780871.1235287
+7	552630 93355 987 912591 0.018 28.497 2779 -83.41965885019 -40.253819706706 -174623.26600342 11079127.441002
+8	645985 93231 987 912591 0.018 28.497 2779 -66.948875653855 12.148224067176 -50041.921412326 1291404.4444408
+9	739216 93273 987 912591 0.018 28.497 2779 -68.078603490981 -5.6605366695856 -70534.753692554 2066710.4759215
+10	832489 93328 987 912591 0.018 28.497 2779 35.51056180913 166.43316977093 295216.8124324 33940205.354599
+11	925817 93259 987 912591 0.018 28.497 2779 108.62864447281 236.04940245635 451766.67915413 75096721.472573
+12	1019076 31076 1038 912700 0.021 28.5 933 0.86937622256031 3560.9756097561 416204.75842184 406035835.87847
+13	1050152 20524 1041 912703 0.021 28.5 618 2.551775147929 3365.8536585366 246722.5217555 239880623.03354
+14	1070676 20556 1046 912708 0.021 28.5 618 187.79342723005 1951.2195121951 454251.72360556 350644802.41841
+
