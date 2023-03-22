@@ -1,50 +1,101 @@
-Epoch 1, Loss: 1108.2960205078125, Accuracy: 0.0, Test Loss: 1168.2889404296875, Test Accuracy: 0.0
-Epoch 2, Loss: 1063.986572265625, Accuracy: 0.0, Test Loss: 1123.8411865234375, Test Accuracy: 0.0
-Epoch 3, Loss: 1021.6511840820312, Accuracy: 0.0, Test Loss: 1080.326171875, Test Accuracy: 0.0
-Epoch 4, Loss: 979.8043823242188, Accuracy: 0.0, Test Loss: 1038.5042724609375, Test Accuracy: 0.0
-Epoch 5, Loss: 940.2633056640625, Accuracy: 0.0, Test Loss: 997.7197265625, Test Accuracy: 0.0
-Epoch 6, Loss: 901.3023681640625, Accuracy: 0.0, Test Loss: 958.724609375, Test Accuracy: 0.0
-Epoch 7, Loss: 864.73046875, Accuracy: 0.0, Test Loss: 920.7236328125, Test Accuracy: 0.0
-Epoch 8, Loss: 828.7394409179688, Accuracy: 0.0, Test Loss: 884.4620971679688, Test Accuracy: 0.0
-Epoch 9, Loss: 793.8773193359375, Accuracy: 0.0, Test Loss: 850.0150756835938, Test Accuracy: 0.0
-Epoch 10, Loss: 761.4212646484375, Accuracy: 0.0, Test Loss: 816.3845825195312, Test Accuracy: 0.0
-Epoch 11, Loss: 729.83154296875, Accuracy: 0.0, Test Loss: 784.0271606445312, Test Accuracy: 0.0
-Epoch 12, Loss: 699.6959228515625, Accuracy: 0.0, Test Loss: 752.806640625, Test Accuracy: 0.0
-Epoch 13, Loss: 669.9917602539062, Accuracy: 0.0, Test Loss: 723.4354858398438, Test Accuracy: 0.0
-Epoch 14, Loss: 642.5377197265625, Accuracy: 0.0, Test Loss: 694.898193359375, Test Accuracy: 0.0
-Epoch 15, Loss: 615.7816162109375, Accuracy: 0.0, Test Loss: 667.635009765625, Test Accuracy: 0.0
-Epoch 16, Loss: 590.3947143554688, Accuracy: 0.0, Test Loss: 641.421875, Test Accuracy: 0.0
-Epoch 17, Loss: 565.9823608398438, Accuracy: 0.0, Test Loss: 616.393310546875, Test Accuracy: 0.0
-Epoch 18, Loss: 542.4793701171875, Accuracy: 0.0, Test Loss: 592.6754760742188, Test Accuracy: 0.0
-Epoch 19, Loss: 520.4950561523438, Accuracy: 0.0, Test Loss: 569.7821655273438, Test Accuracy: 0.0
-Epoch 20, Loss: 499.4009704589844, Accuracy: 0.0, Test Loss: 547.8560180664062, Test Accuracy: 0.0
-Epoch 21, Loss: 478.8717346191406, Accuracy: 0.0, Test Loss: 527.25927734375, Test Accuracy: 0.0
-Epoch 22, Loss: 459.92901611328125, Accuracy: 0.0, Test Loss: 507.3470764160156, Test Accuracy: 0.0
-Epoch 23, Loss: 441.45819091796875, Accuracy: 0.0, Test Loss: 488.5440368652344, Test Accuracy: 0.0
-Epoch 24, Loss: 424.02001953125, Accuracy: 0.0, Test Loss: 470.6748962402344, Test Accuracy: 0.0
-Epoch 25, Loss: 407.6387634277344, Accuracy: 0.0, Test Loss: 453.52001953125, Test Accuracy: 0.0
-Epoch 26, Loss: 392.156494140625, Accuracy: 0.0, Test Loss: 437.0185546875, Test Accuracy: 0.0
-Epoch 27, Loss: 376.7775573730469, Accuracy: 0.0, Test Loss: 421.820556640625, Test Accuracy: 0.0
-Epoch 28, Loss: 362.6325988769531, Accuracy: 0.0, Test Loss: 407.42041015625, Test Accuracy: 0.0
-Epoch 29, Loss: 349.7249755859375, Accuracy: 0.0, Test Loss: 393.2929382324219, Test Accuracy: 0.0
-Epoch 30, Loss: 336.95355224609375, Accuracy: 0.0, Test Loss: 380.0275573730469, Test Accuracy: 0.0
-Epoch 31, Loss: 324.9107971191406, Accuracy: 0.0, Test Loss: 367.5556945800781, Test Accuracy: 0.0
-Epoch 32, Loss: 313.7740173339844, Accuracy: 0.0, Test Loss: 355.6213073730469, Test Accuracy: 0.0
-Epoch 33, Loss: 303.1045227050781, Accuracy: 0.0, Test Loss: 344.367431640625, Test Accuracy: 0.0
-Epoch 34, Loss: 292.68426513671875, Accuracy: 0.0, Test Loss: 334.1252746582031, Test Accuracy: 0.0
-Epoch 35, Loss: 283.55340576171875, Accuracy: 0.0, Test Loss: 324.1167907714844, Test Accuracy: 0.0
-Epoch 36, Loss: 274.77044677734375, Accuracy: 0.0, Test Loss: 314.5658874511719, Test Accuracy: 0.0
-Epoch 37, Loss: 266.0094909667969, Accuracy: 0.0, Test Loss: 305.9761962890625, Test Accuracy: 0.0
-Epoch 38, Loss: 258.4436340332031, Accuracy: 0.0, Test Loss: 297.5694885253906, Test Accuracy: 0.0
-Epoch 39, Loss: 251.1044464111328, Accuracy: 0.0, Test Loss: 289.6272888183594, Test Accuracy: 0.0
-Epoch 40, Loss: 244.19479370117188, Accuracy: 0.0, Test Loss: 282.16259765625, Test Accuracy: 0.0
-Epoch 41, Loss: 237.6831512451172, Accuracy: 0.0, Test Loss: 275.1983642578125, Test Accuracy: 0.0
-Epoch 42, Loss: 231.7066650390625, Accuracy: 0.0, Test Loss: 268.5924987792969, Test Accuracy: 0.0
-Epoch 43, Loss: 226.0121307373047, Accuracy: 0.0, Test Loss: 262.447021484375, Test Accuracy: 0.0
-Epoch 44, Loss: 220.69589233398438, Accuracy: 0.0, Test Loss: 256.7381896972656, Test Accuracy: 0.0
-Epoch 45, Loss: 215.7122039794922, Accuracy: 0.0, Test Loss: 251.4651641845703, Test Accuracy: 0.0
-Epoch 46, Loss: 211.25595092773438, Accuracy: 0.0, Test Loss: 246.399658203125, Test Accuracy: 0.0
-Epoch 47, Loss: 206.96096801757812, Accuracy: 0.0, Test Loss: 241.6974639892578, Test Accuracy: 0.0
-Epoch 48, Loss: 202.91131591796875, Accuracy: 0.0, Test Loss: 237.40309143066406, Test Accuracy: 0.0
-Epoch 49, Loss: 199.34939575195312, Accuracy: 0.0, Test Loss: 233.2583770751953, Test Accuracy: 0.0
-Epoch 50, Loss: 195.81195068359375, Accuracy: 0.0, Test Loss: 229.5285186767578, Test Accuracy: 0.0
+Epoch 1, Loss: 2.3217966556549072
+, Epoch 2, Loss: 0.3863726854324341
+, Epoch 3, Loss: 0.16211025416851044
+, Epoch 4, Loss: 0.21120324730873108
+, Epoch 5, Loss: 0.25565725564956665
+, Epoch 6, Loss: 0.1950904130935669
+, Epoch 7, Loss: 0.22423836588859558
+, Epoch 8, Loss: 0.3476521074771881
+, Epoch 9, Loss: 0.23807206749916077
+, Epoch 10, Loss: 0.28541022539138794
+, Epoch 11, Loss: 0.2441253364086151
+, Epoch 12, Loss: 0.1755492091178894
+, Epoch 13, Loss: 0.26620393991470337
+, Epoch 14, Loss: 0.3124111592769623
+, Epoch 15, Loss: 0.27384084463119507
+, Epoch 16, Loss: 0.2975541949272156
+, Epoch 17, Loss: 0.21620941162109375
+, Epoch 18, Loss: 0.14876803755760193
+, Epoch 19, Loss: 0.22019262611865997
+, Epoch 20, Loss: 0.16406221687793732
+, Epoch 21, Loss: 0.23143532872200012
+, Epoch 22, Loss: 0.23670272529125214
+, Epoch 23, Loss: 0.21866276860237122
+, Epoch 24, Loss: 0.26405826210975647
+, Epoch 25, Loss: 0.3020220398902893
+, Epoch 26, Loss: 0.43203204870224
+, Epoch 27, Loss: 0.20345909893512726
+, Epoch 28, Loss: 0.217662051320076
+, Epoch 29, Loss: 0.14861372113227844
+, Epoch 30, Loss: 0.1702440232038498
+, Epoch 31, Loss: 0.3047078251838684
+, Epoch 32, Loss: 0.27459150552749634
+, Epoch 33, Loss: 0.2523689568042755
+, Epoch 34, Loss: 0.16207563877105713
+, Epoch 35, Loss: 0.13930675387382507
+, Epoch 36, Loss: 0.22450289130210876
+, Epoch 37, Loss: 0.15131932497024536
+, Epoch 38, Loss: 0.2718100845813751
+, Epoch 39, Loss: 0.16611380875110626
+, Epoch 40, Loss: 0.2022031545639038
+, Epoch 41, Loss: 0.31992489099502563
+, Epoch 42, Loss: 0.14522989094257355
+, Epoch 43, Loss: 0.2608811855316162
+, Epoch 44, Loss: 0.15110205113887787
+, Epoch 45, Loss: 0.1728425770998001
+, Epoch 46, Loss: 0.10908123105764389
+, Epoch 47, Loss: 0.2735055685043335
+, Epoch 48, Loss: 0.2441776990890503
+, Epoch 49, Loss: 0.32366377115249634
+, Epoch 50, Loss: 0.20213806629180908
+, Epoch 51, Loss: 0.19970016181468964
+, Epoch 52, Loss: 0.2685691714286804
+, Epoch 53, Loss: 0.12812824547290802
+, Epoch 54, Loss: 0.27559465169906616
+, Epoch 55, Loss: 0.16398558020591736
+, Epoch 56, Loss: 0.2222292423248291
+, Epoch 57, Loss: 0.22385939955711365
+, Epoch 58, Loss: 0.14026078581809998
+, Epoch 59, Loss: 0.21201570332050323
+, Epoch 60, Loss: 0.24386870861053467
+, Epoch 61, Loss: 0.1310265064239502
+, Epoch 62, Loss: 0.23897051811218262
+, Epoch 63, Loss: 0.241876482963562
+, Epoch 64, Loss: 0.14185293018817902
+, Epoch 65, Loss: 0.20418468117713928
+, Epoch 66, Loss: 0.23286858201026917
+, Epoch 67, Loss: 0.343658447265625
+, Epoch 68, Loss: 0.22139108180999756
+, Epoch 69, Loss: 0.24681511521339417
+, Epoch 70, Loss: 0.19399674236774445
+, Epoch 71, Loss: 0.3129919469356537
+, Epoch 72, Loss: 0.15285691618919373
+, Epoch 73, Loss: 0.20504434406757355
+, Epoch 74, Loss: 0.22632625699043274
+, Epoch 75, Loss: 0.2253400832414627
+, Epoch 76, Loss: 0.1804949939250946
+, Epoch 77, Loss: 0.20643767714500427
+, Epoch 78, Loss: 0.2427823543548584
+, Epoch 79, Loss: 0.13823233544826508
+, Epoch 80, Loss: 0.16934490203857422
+, Epoch 81, Loss: 0.27799367904663086
+, Epoch 82, Loss: 0.16328558325767517
+, Epoch 83, Loss: 0.16331419348716736
+, Epoch 84, Loss: 0.1837630420923233
+, Epoch 85, Loss: 0.23548272252082825
+, Epoch 86, Loss: 0.25417789816856384
+, Epoch 87, Loss: 0.2556743025779724
+, Epoch 88, Loss: 0.24872234463691711
+, Epoch 89, Loss: 0.19545485079288483
+, Epoch 90, Loss: 0.18225179612636566
+, Epoch 91, Loss: 0.20382170379161835
+, Epoch 92, Loss: 0.23346693813800812
+, Epoch 93, Loss: 0.21063128113746643
+, Epoch 94, Loss: 0.20108568668365479
+, Epoch 95, Loss: 0.2216065675020218
+, Epoch 96, Loss: 0.24576640129089355
+, Epoch 97, Loss: 0.23912778496742249
+, Epoch 98, Loss: 0.24457195401191711
+, Epoch 99, Loss: 0.20312067866325378
+, Epoch 100, Loss: 0.1802196055650711
+, 
