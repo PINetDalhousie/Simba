@@ -1,1 +1,3 @@
+venv/
 *libsimu5g*
+anomaly_detection/data/
