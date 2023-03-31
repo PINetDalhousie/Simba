@@ -7,6 +7,7 @@ from sklearn.model_selection import train_test_split
 import tensorflow as tf
 from models import FCN
 from train_val_step import TrainVal
+from preprocess import Preprocess
 
 def main():
     
@@ -22,22 +23,27 @@ def main():
     labels = data['FaultCause']
 
     # Split dataset into train and validaiton
-    kpis_train, kpis_test, labels_train, labels_test = train_test_split(kpis, labels, test_size=0.2, random_state=42)
+    kpis_train, kpis_val, labels_train, labels_val = train_test_split(kpis, labels, test_size=0.2, random_state=42)
 
     # normalize data
     min_max_scaler = MinMaxScaler()
     kpis_train = min_max_scaler.fit_transform(kpis_train)
-    kpis_test = min_max_scaler.transform(kpis_test)
+    kpis_val = min_max_scaler.transform(kpis_val)
 
     # Create tf.data.Dataset object from dataset
-    train_ds = tf.data.Dataset.from_tensor_slices((kpis_train, labels_train)).shuffle(10000).batch(32)
-    test_ds = tf.data.Dataset.from_tensor_slices((kpis_test, labels_test)).batch(32)
+    train_ds = tf.data.Dataset.from_tensor_slices((kpis_train, labels_train))
+    train_ds = train_ds.map(Preprocess().cast)
+    train_ds = train_ds.map(Preprocess().one_hot_encode_labels).shuffle(10000).batch(32)
+    
+    val_ds = tf.data.Dataset.from_tensor_slices((kpis_val, labels_val))
+    val_ds = val_ds.map(Preprocess().cast)
+    val_ds = val_ds.map(Preprocess().one_hot_encode_labels).batch(32)
 
     # define the model
     model = FCN()
 
     # Choose an optimizer and loss function for training
-    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+    loss_object = tf.keras.losses.CategoricalCrossentropy()
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
 
     # define train and validation steps
@@ -47,25 +53,25 @@ def main():
     EPOCHS = 1000
 
     for epoch in range(EPOCHS):
-        # Reset the metrics at the start of the next epoch
-        train_val.train_loss.reset_states()
-        train_val.train_accuracy.reset_states()
-        train_val.test_loss.reset_states()
-        train_val.test_accuracy.reset_states()
+        # reset metrics
+        train_val.reset_metrics()
 
         for kpis, labels in train_ds:
             train_val.train_step(kpis, labels)
 
-        for kpis, labels in test_ds:
-            train_val.test_step(kpis, labels)
+        for kpis, labels in val_ds:
+            train_val.val_step(kpis, labels)
 
         print(
             f'Epoch {epoch + 1}, '
-            f'Loss: {train_val.train_loss.result()}, '
-            f'Accuracy: {train_val.train_accuracy.result() * 100}, '
-            f'Test Loss: {train_val.test_loss.result()}, '
-            f'Test Accuracy: {train_val.test_accuracy.result() * 100}'
+            f'Train Loss: {train_val.train_loss.result()}, '
+            f'Train F1score 1: {train_val.f1score_1_train.result() * 100}, ',
+            f'Val Loss: {train_val.val_loss.result()}, '
+            f'Val F1score 1: {train_val.f1score_1_val.result() * 100}, '
         )
+
+        # Write metrics to tensorboard
+        train_val.write_metrics(epoch)
 
 
 if __name__ == '__main__':
