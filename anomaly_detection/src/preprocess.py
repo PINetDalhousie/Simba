@@ -9,6 +9,7 @@ class Preprocess:
         '''
         self.depth = 2
 
+
     def cast(self,kpis,labels):
         return tf.cast(kpis,dtype=tf.float32),tf.cast(labels,dtype=tf.int32)
 
