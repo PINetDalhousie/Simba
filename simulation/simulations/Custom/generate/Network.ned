@@ -79,9 +79,9 @@ network Network
         gnb907: gNodeB {
             @display("p=101,198;is=vl");
         }
-        bgCell[numBgCells]: BackgroundCell {
-            @display("p=235,120;is=vl");
-        }
+//        bgCell[numBgCells]: BackgroundCell {
+//            @display("p=235,120;is=vl");
+//        }
         ue[numUe]: NRUe {
             @display("p=80,200");
         }

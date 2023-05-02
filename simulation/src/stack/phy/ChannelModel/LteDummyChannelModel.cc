@@ -44,6 +44,11 @@ std::vector<double> LteDummyChannelModel::getRSRP(LteAirFrame *frame, UserContro
    return tmp;
 }
 
+double LteDummyChannelModel::getRSRQ(double rsrp, UserControlInfo* lteInfo)
+{
+    return 10000;
+}
+
 std::vector<double> LteDummyChannelModel::getSINR_bgUe(LteAirFrame *frame, UserControlInfo* lteInfo)
 {
    std::vector<double> tmp;

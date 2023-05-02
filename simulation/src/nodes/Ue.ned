@@ -98,6 +98,9 @@ module Ue
     	@signal[servingRSRP];
         @statistic[servingRSRP](title="RSRP of serving cell measured at dynamic cell association"; unit="dBm"; source="servingRSRP"; record=last,vector);
         
+        @signal[servingRSRQ];
+        @statistic[servingRSRQ](title="RSRQ of serving cell measured at dynamic cell association"; unit="dBm"; source="servingRSRQ"; record=last,vector);
+        
         @signal[servingSINR];
         @statistic[servingSINR](title="SINR of serving cell measured at dynamic cell association"; unit="dBm"; source="servingSINR"; record=last,vector);
         
@@ -121,6 +124,15 @@ module Ue
         
         @signal[neighborTop2Distance];
         @statistic[neighborTop2Distance](title="distance to top2 neighboring cell measured at handover frame reception"; unit="meters"; source="neighborTop2Distance"; record=last,vector);
+
+		@signal[servingCell];
+        @statistic[servingCell](title="Id of the base station connected to the user"; unit=""; source="servingCell"; record=last,vector);
+        
+        @signal[timestamp];
+        @statistic[timestamp](title="Current simulation time"; unit="s"; source="timestamp"; record=last,vector);
+        
+        @signal[UEid];
+        @statistic[UEid](title="ID of the user collecting the KPIs"; unit=""; source="UEid"; record=last,vector);
 
     gates:
         input radioIn @directIn;     // connection to master

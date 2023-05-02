@@ -13,6 +13,7 @@
 #include "stack/ip2nic/IP2Nic.h"
 #include "stack/phy/feedback/LteDlFeedbackGenerator.h"
 #include "stack/d2dModeSelection/D2DModeSelectionBase.h"
+#include <fstream>
 
 Define_Module(NRPhyUe);
 
@@ -185,6 +186,7 @@ void NRPhyUe::handleAirFrame(cMessage* msg)
         emit(positionX_, masterPosX_);
         emit(positionY_, masterPosY_);
         emit(servingRSRP_, masterRsrp_);
+        emit(servingRSRQ_, masterRsrq_);
         emit(servingSINR_, masterSinr_);
         emit(servingDistance_, masterDistance_);
         emit(neighborTop1RSRP_, neighborRSRP_[0]);
@@ -193,6 +195,9 @@ void NRPhyUe::handleAirFrame(cMessage* msg)
         emit(neighborTop2SINR_, neighborSINR_[1]);
         emit(neighborTop1Distance_, neighborDistance_[0]);
         emit(neighborTop2Distance_, neighborDistance_[1]);
+        emit(servingCell_, (long)masterId_);
+        emit(timestamp_,simTime());
+        emit(UEid_,nodeId_);
     }
 
     // Apply decider to received packet
@@ -256,12 +261,22 @@ void NRPhyUe::handleAirFrame(cMessage* msg)
 
 void NRPhyUe::triggerHandover()
 {
+    std::ofstream logfile;
+    logfile.open("/home/kvasir/Documents/Ericsson_Project/Omnetpp/run.log",  std::ios_base::app);
+
     EV << "####Handover starting:####" << endl;
     EV << "current master: " << masterId_ << endl;
     EV << "current rssi: " << currentMasterRssi_ << endl;
     EV << "candidate master: " << candidateMasterId_ << endl;
     EV << "candidate rssi: " << candidateMasterRssi_ << endl;
     EV << "############" << endl;
+
+    logfile << "####Handover starting:####" << endl;
+    logfile << "current master: " << masterId_ << endl;
+    logfile << "current rssi: " << currentMasterRssi_ << endl;
+    logfile << "candidate master: " << candidateMasterId_ << endl;
+    logfile << "candidate rssi: " << candidateMasterRssi_ << endl;
+    logfile << "############" << endl;
 
     // The candidate node is a secondary node and the other stack of this UE is attached to its master node
     MacNodeId masterNodeId = binder_->getMasterNode(candidateMasterId_);
@@ -287,12 +302,14 @@ void NRPhyUe::triggerHandover()
                 // Wait for the other stack to complete its handover
                 scheduleAt(simTime() + delta, handoverStarter_);
                 EV << NOW << " NRPhyUe::triggerHandover - Wait the handover completion for the other stack. Delay this handover." << endl;
+                logfile << NOW << " NRPhyUe::triggerHandover - Wait the handover completion for the other stack. Delay this handover." << endl;
             }
             else
             {
                 // cancel this handover since the master is performing handover
                 binder_->removeHandoverTriggered(nodeId_);
                 EV << NOW << " NRPhyUe::triggerHandover - UE " << nodeId_ << " is canceling its handover to eNB " << candidateMasterId_ << " since the master is performing handover" << endl;
+                logfile << NOW << " NRPhyUe::triggerHandover - UE " << nodeId_ << " is canceling its handover to eNB " << candidateMasterId_ << " since the master is performing handover" << endl;
             }
 
             return;
@@ -303,6 +320,7 @@ void NRPhyUe::triggerHandover()
     if (otherPhy_->getMasterId() != 0 && binder_->getMasterNode(otherPhy_->getMasterId()) == masterId_)
     {
         EV << NOW << " NRPhyUe::triggerHandover - Forcing detachment from " << otherPhy_->getMasterId() << " which is a secondary node to " << masterId_ << ". Delay this handover." << endl;
+        logfile << NOW << " NRPhyUe::triggerHandover - Forcing detachment from " << otherPhy_->getMasterId() << " which is a secondary node to " << masterId_ << ". Delay this handover." << endl;
 
         // need to wait for the other stack to complete detachment
         scheduleAt(simTime() + handoverDetachment_+handoverDelta_, handoverStarter_);
@@ -319,16 +337,19 @@ void NRPhyUe::triggerHandover()
     if (masterId_ == 0) {
         handoverLatency = handoverAttachment_;
         EV << NOW << " NRPhyUe::triggerHandover - UE " << nodeId_ << " is starting attachment procedure to eNB " << candidateMasterId_ << "... " << endl;
+        logfile << NOW << " NRPhyUe::triggerHandover - UE " << nodeId_ << " is starting attachment procedure to eNB " << candidateMasterId_ << "... " << endl;
     }
     // Detachment only
     else if (candidateMasterId_ == 0) {
         handoverLatency = handoverDetachment_;
         EV << NOW << " NRPhyUe::triggerHandover - UE " << nodeId_ << " lost its connection to eNB " << masterId_ << ". Now detaching... " << endl;
+        logfile << NOW << " NRPhyUe::triggerHandover - UE " << nodeId_ << " lost its connection to eNB " << masterId_ << ". Now detaching... " << endl;
     }
     // Complete handover
     else {
         handoverLatency = handoverDetachment_ + handoverAttachment_;
         EV << NOW << " NRPhyUe::triggerHandover - UE " << nodeId_ << " is starting handover to eNB " << candidateMasterId_ << "... " << endl;
+        logfile << NOW << " NRPhyUe::triggerHandover - UE " << nodeId_ << " is starting handover to eNB " << candidateMasterId_ << "... " << endl;
     }
 
     binder_->addUeHandoverTriggered(nodeId_);
@@ -337,6 +358,7 @@ void NRPhyUe::triggerHandover()
     IP2Nic* ip2nic = check_and_cast<IP2Nic*>(getParentModule()->getSubmodule("ip2nic"));
     ip2nic->triggerHandoverUe(candidateMasterId_, isNr_);
 
+
     if (masterId_ != 0)
     {
         cModule* enb = getSimulation()->getModule(binder_->getOmnetId(masterId_));
@@ -344,6 +366,7 @@ void NRPhyUe::triggerHandover()
         // Inform the eNB's IP2Nic module to forward data to the target eNB
         if (candidateMasterId_ != 0)
         {
+            logfile << "Trigger IP2Nic mode switch\n";
             IP2Nic* enbIp2nic = check_and_cast<IP2Nic*>(enb->getSubmodule("cellularNic")->getSubmodule("ip2nic"));
             enbIp2nic->triggerHandoverSource(nodeId_, candidateMasterId_);
         }
@@ -352,8 +375,11 @@ void NRPhyUe::triggerHandover()
         // currently, DM is possible only for UEs served by the same cell
 
         // trigger D2D mode switch
+        logfile << "Trigger D2d mode switch\n";
         D2DModeSelectionBase *d2dModeSelection = check_and_cast<D2DModeSelectionBase*>(enb->getSubmodule("cellularNic")->getSubmodule("d2dModeSelection"));
+        logfile << "Cleared the trigger D2d mode switch\n";
         d2dModeSelection->doModeSwitchAtHandover(nodeId_, false);
+        logfile << "Cleared final part of trigger D2d mode switch\n";
     }
 
     handoverTrigger_ = new cMessage("handoverTrigger");
@@ -362,6 +388,10 @@ void NRPhyUe::triggerHandover()
 
 void NRPhyUe::doHandover()
 {
+    std::ofstream logfile;
+    logfile.open("/home/kvasir/Documents/Ericsson_Project/Omnetpp/run.log",  std::ios_base::app);
+    logfile << "Handover process started " << simTime() << "\n";
+    
     // change masterId
     MacNodeId oldMasterId = masterId_;
     masterId_ = candidateMasterId_;
@@ -371,12 +401,14 @@ void NRPhyUe::doHandover()
     hysteresisTh_ = updateHysteresisTh(currentMasterRssi_);
 
     binder_->updateUeInfoCellId(nodeId_, masterId_);
+    logfile << "Right before parent module if\n";
 
     // @author Alessandro Noferi
     if(getParentModule()->getParentModule()->findSubmodule("NRueCollector") != -1)
     {
         binder_->moveUeCollector(nodeId_, oldMasterId, masterId_);
     }
+    logfile << "Right after parent module if\n";
 
     // do MAC operations for handover
     mac_->doHandover(masterId_);
@@ -384,6 +416,7 @@ void NRPhyUe::doHandover()
     // When the UE was attached to an old eNodeB, it has to perform detachment procedures
     if (oldMasterId != 0)
     {
+        logfile << "Entered detachment if\n";
         // Delete Old Buffers
         deleteOldBuffers(oldMasterId);
 
@@ -399,9 +432,13 @@ void NRPhyUe::doHandover()
         cellInfo_->detachUser(nodeId_);
     }
 
+    logfile << "Cleared detachment if\n";
+
     // When the UE is attaching to a new eNodeB, it has to perform attachment procedures
     if (masterId_ != 0)
     {
+        logfile << "Entered second if\n";
+        
         LteAmc *newAmc = getAmcModule(masterId_);
         newAmc->attachUser(nodeId_, UL);
         newAmc->attachUser(nodeId_, DL);
@@ -439,7 +476,7 @@ void NRPhyUe::doHandover()
     fbGen->handleHandover(masterId_);
 
     // collect stat
-    emit(servingCell_, (long)masterId_);
+    //emit(servingCell_, (long)masterId_);
 
     if (masterId_ == 0)
         EV << NOW << " NRPhyUe::doHandover - UE " << nodeId_ << " detached from the network" << endl;
@@ -459,6 +496,8 @@ void NRPhyUe::doHandover()
         IP2Nic* enbIp2nic =  check_and_cast<IP2Nic*>(getSimulation()->getModule(binder_->getOmnetId(masterId_))->getSubmodule("cellularNic")->getSubmodule("ip2nic"));
         enbIp2nic->signalHandoverCompleteTarget(nodeId_, oldMasterId);
     }
+
+    logfile.close();
 }
 
 void NRPhyUe::forceHandover(MacNodeId targetMasterNode, double targetMasterRssi)

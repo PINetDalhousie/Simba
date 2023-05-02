@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <analysis version="2">
     <inputs>
-        <input pattern="/simu5G/simulations/Custom/generate/results/Urban_Microcell/-*.vec"/>
-        <input pattern="/simu5G/simulations/Custom/generate/results/Urban_Microcell/-*.sca"/>
+        <input pattern="/Simu5G/simulations/Custom/generate/results/Urban_Microcell/-*.vec"/>
+        <input pattern="/Simu5G/simulations/Custom/generate/results/Urban_Microcell/-*.sca"/>
     </inputs>
     <charts/>
 </analysis>

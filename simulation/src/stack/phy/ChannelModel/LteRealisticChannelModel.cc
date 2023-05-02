@@ -1027,6 +1027,94 @@ std::vector<double> LteRealisticChannelModel::getRSRP(LteAirFrame *frame, UserCo
    return rsrpVector;
 }
 
+double LteRealisticChannelModel::getRSRQ(double rsrpAvg, UserControlInfo* lteInfo)
+{
+    std::ofstream myfile;
+    myfile.open("/home/kvasir/Documents/Ericsson_Project/Omnetpp/test.txt", std::fstream::app);
+    myfile << "--------------\n";
+
+    //double rssi = dBmToLinear(lteInfo->getTxPower());
+    double rssi = lteInfo->getTxPower();
+
+    myfile << "NON LINEAR RSSI: " << lteInfo->getTxPower() << "\n";
+    myfile << "INITIAL RSSI: " << rssi << "\n";
+
+    RbMap rbmap = lteInfo->getGrantedBlocks();
+    Direction dir = (Direction) lteInfo->getDirection();
+
+    // get MacId for Ue and eNb
+    MacNodeId ueId = lteInfo->getDestId();
+    MacNodeId eNbId = lteInfo->getSourceId();
+
+    // get position of Ue and eNb
+    Coord ueCoord = phy_->getCoord();
+    Coord enbCoord = lteInfo->getCoord();
+
+    //============ MULTI CELL INTERFERENCE COMPUTATION =================
+    //vector containing the sum of multicell interference for each band
+    std::vector<double> multiCellInterference; // Linear value (mW)
+    // prepare data structure
+    multiCellInterference.resize(numBands_, 0);
+    if (enableDownlinkInterference_ && dir == DL && lteInfo->getFrameType() != HANDOVERPKT)
+    {
+       myfile << "Got into the first if\n";
+       computeDownlinkInterference(eNbId, ueId, ueCoord, (lteInfo->getFrameType() == FEEDBACKPKT), lteInfo->getCarrierFrequency(), rbmap, &multiCellInterference);
+    }
+    else if (enableUplinkInterference_ && dir == UL)
+    {
+       computeUplinkInterference(eNbId, ueId, (lteInfo->getFrameType() == FEEDBACKPKT), lteInfo->getCarrierFrequency(), rbmap, &multiCellInterference);
+    }
+
+    //============ BACKGROUND CELLS INTERFERENCE COMPUTATION =================
+    //vector containing the sum of bg-cell interference for each band
+    std::vector<double> bgCellInterference; // Linear value (mW)
+    // prepare data structure
+    bgCellInterference.resize(numBands_, 0);
+    if (enableBackgroundCellInterference_)
+    {
+       myfile << "Got into the second if\n";
+       computeBackgroundCellInterference(ueId, enbCoord, ueCoord, (lteInfo->getFrameType() == FEEDBACKPKT), lteInfo->getCarrierFrequency(), rbmap, dir, &bgCellInterference); // dBm
+    }
+
+    //============ EXTCELL INTERFERENCE COMPUTATION =================
+    // TODO this might be obsolete as it is replaced by background cell interference
+    //vector containing the sum of ext-cell interference for each band
+    std::vector<double> extCellInterference; // Linear value (mW)
+    // prepare data structure
+    extCellInterference.resize(numBands_, 0);
+    if (enableExtCellInterference_ && dir == DL)
+    {
+       myfile << "Got into the third if\n";
+       computeExtCellInterference(eNbId, ueId, ueCoord, (lteInfo->getFrameType() == FEEDBACKPKT), lteInfo->getCarrierFrequency(), &extCellInterference); // dBm
+    }
+
+    for (unsigned int i = 0; i < numBands_; i++)
+    {
+        //rssi += bgCellInterference[i] + extCellInterference[i] + multiCellInterference[i]
+        //    + dBmToLinear(thermalNoise_ + ueNoiseFigure_);
+        rssi += bgCellInterference[i] + multiCellInterference[i]
+            + dBmToLinear(thermalNoise_ + ueNoiseFigure_);
+
+        myfile << "Band: " << i << " bgcellinterference: " << bgCellInterference[i] << "\n";
+        myfile << "Band: " << i << " multiCellInterference: " << multiCellInterference[i] << "\n";
+        myfile << "Band: " << i << " noise: " << dBmToLinear(thermalNoise_ + ueNoiseFigure_) << "\n";
+    }
+
+    double numBands = numBands_;
+    // numBands = 1;
+
+    myfile << "Final RSSI: " << rssi << "\n";
+    //myfile << "RSRQ: " << linearToDb(dBmToLinear(rsrpAvg)/(rssi/numBands)) << "\n";
+    myfile << "RSRQ: " << rsrpAvg/(rssi/numBands) << "\n";
+    myfile << "RSRP: " << rsrpAvg << "\n";
+    myfile.close();
+
+    EV << "computed RSSI: " << linearToDBm(rssi) << endl;
+
+    //return linearToDb(dBmToLinear(rsrpAvg)/(rssi/numBands));
+    return rsrpAvg/(rssi/numBands);
+}
+
 std::vector<double> LteRealisticChannelModel::getSINR_bgUe(LteAirFrame *frame, UserControlInfo* lteInfo)
 {
    //get tx power

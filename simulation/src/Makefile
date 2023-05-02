@@ -46,6 +46,8 @@ OBJS = \
     $O/apps/mec/MecApps/MecRequestForegroundApp/MecRequestForegroundApp.o \
     $O/apps/mec/MecRequestResponseApp/MECResponseApp.o \
     $O/apps/mec/MecRequestResponseApp/UERequestApp.o \
+    $O/apps/mec/RealTimeVideoStreamingApp/MecRTVideoStreamingReceiver.o \
+    $O/apps/mec/RealTimeVideoStreamingApp/RTVideoStreamingSender.o \
     $O/apps/mec/WarningAlert/MECWarningAlertApp.o \
     $O/apps/mec/WarningAlert/UEWarningAlertApp.o \
     $O/apps/mec/WarningAlert/packets/Serializers/WarningAlertPacketSerializer.o \
@@ -245,6 +247,7 @@ OBJS = \
     $O/apps/mec/DeviceApp/DeviceAppMessages/DeviceAppPacket_m.o \
     $O/apps/mec/MecApps/packets/ProcessingTimeMessage_m.o \
     $O/apps/mec/MecRequestResponseApp/packets/RequestResponsePacket_m.o \
+    $O/apps/mec/RealTimeVideoStreamingApp/packets/RTVideoStreamingPackets_m.o \
     $O/apps/mec/WarningAlert/packets/WarningAlertPacket_m.o \
     $O/apps/mecRequestResponseApp/packets/MecRequestResponsePacket_m.o \
     $O/apps/mecRequestResponseApp/packets/MigrationTimer_m.o \
@@ -296,6 +299,7 @@ MSGFILES = \
     apps/mec/DeviceApp/DeviceAppMessages/DeviceAppPacket.msg \
     apps/mec/MecApps/packets/ProcessingTimeMessage.msg \
     apps/mec/MecRequestResponseApp/packets/RequestResponsePacket.msg \
+    apps/mec/RealTimeVideoStreamingApp/packets/RTVideoStreamingPackets.msg \
     apps/mec/WarningAlert/packets/WarningAlertPacket.msg \
     apps/mecRequestResponseApp/packets/MecRequestResponsePacket.msg \
     apps/mecRequestResponseApp/packets/MigrationTimer.msg \
@@ -413,7 +417,7 @@ endif
 $O/$(TARGET) $O/$(TARGET_IMPDEF) $O/$(TARGET_IMPLIB) &: $(OBJS)  $(wildcard $(EXTRA_OBJS)) Makefile $(CONFIGFILE)
 	@$(MKPATH) $O
 	@echo Creating shared library: $@
-	$(Q)echo >.tmp$$$$ $(OBJS) $(EXTRA_OBJS) && $(SHLIB_LD) -o $O/$(TARGET) @.tmp$$$$ $(AS_NEEDED_OFF) $(WHOLE_ARCHIVE_ON) $(LIBS) $(WHOLE_ARCHIVE_OFF) $(OMNETPP_LIBS) $(LDFLAGS) ; rm .tmp$$$$
+	$(Q)$(SHLIB_LD) -o $O/$(TARGET) $(OBJS) $(EXTRA_OBJS) $(AS_NEEDED_OFF) $(WHOLE_ARCHIVE_ON) $(LIBS) $(WHOLE_ARCHIVE_OFF) $(OMNETPP_LIBS) $(LDFLAGS)
 	$(Q)$(SHLIB_POSTPROCESS) $O/$(TARGET)
 ifeq ($(PLATFORM),win32)
 	$(Q)llvm-ar d $O/$(TARGET_IMPLIB) $(TARGET) # WORKAROUND: throw away the first file from the archive to make the LLD generated import lib valid

@@ -43,6 +43,7 @@ simple LtePhyBase like LtePhy {
         bool enableHandover = default(false);
         double handoverLatency @unit(s) = default(0.05s);
         double hysteresisFactor = default(10);
+        double hysteresis = default(5);
         
         // TODO move to LtePhyUeD2D module
         bool enableMulticastD2DRangeCheck = default(false);

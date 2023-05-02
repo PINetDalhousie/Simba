@@ -148,13 +148,13 @@ GetBLER_AWGN (double SINR, int MCS)
   else
     {
       for (int i=0; i<42; i++)
-	  {
+      {
         if ( SINR >= SINR_15_CQI_AWGN [CQI-1] [i] && SINR < SINR_15_CQI_AWGN [CQI-1] [i+1])
           {
             index = i;
             // std::cout << SINR_15_CQI_AWGN [CQI] [i] << " - " << SINR_15_CQI_AWGN [CQI] [i+1] << std::endl;
           }
-	   }
+       }
     }
 
   if ( index != -1 )

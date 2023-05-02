@@ -57,6 +57,7 @@ void LtePhyUe::initialize(int stage)
         candidateMasterRssi_ = -999.0;
         hysteresisTh_ = 0;
         hysteresisFactor_ = par("hysteresisFactor");
+        hysteresis_ = par("hysteresis");
         handoverDelta_ = 0.00001;
 
         dasRssiThreshold_ = 1.0e-5;
@@ -66,6 +67,7 @@ void LtePhyUe::initialize(int stage)
         positionX_ = registerSignal("positionX");
         positionY_ = registerSignal("positionY");
         servingRSRP_ = registerSignal("servingRSRP");
+        servingRSRQ_ = registerSignal("servingRSRQ");
         servingSINR_ = registerSignal("servingSINR");
         servingDistance_ = registerSignal("servingDistance");
         neighborTop1RSRP_ = registerSignal("neighborTop1RSRP");
@@ -76,6 +78,8 @@ void LtePhyUe::initialize(int stage)
         neighborTop2Distance_ = registerSignal("neighborTop2Distance");
         averageCqiDl_ = registerSignal("averageCqiDl");
         averageCqiUl_ = registerSignal("averageCqiUl");
+        timestamp_ = registerSignal("timestamp");
+        UEid_ = registerSignal("UEid");
 
         if (!hasListeners(averageCqiDl_))
             error("no phy listeners");
@@ -88,6 +92,7 @@ void LtePhyUe::initialize(int stage)
         WATCH(candidateMasterRssi_);
         WATCH(hysteresisTh_);
         WATCH(hysteresisFactor_);
+        WATCH(hysteresis_);
         WATCH(handoverDelta_);
     }
     else if (stage == inet::INITSTAGE_PHYSICAL_ENVIRONMENT)
@@ -178,7 +183,7 @@ void LtePhyUe::initialize(int stage)
         EV << "LtePhyUe::initialize - Attaching to eNodeB " << masterId_ << endl;
 
         das_->setMasterRuSet(masterId_);
-        emit(servingCell_, (long)masterId_);
+        //emit(servingCell_, (long)masterId_);
     }
     else if (stage == inet::INITSTAGE_NETWORK_CONFIGURATION)
     {
@@ -212,6 +217,11 @@ void LtePhyUe::handleSelfMessage(cMessage *msg)
 
 void LtePhyUe::checkEnbs()
 {
+    // this is a fictitious frame that needs to compute the SINR
+    LteAirFrame *frame = new LteAirFrame("cellSelectionFrame");
+
+    UserControlInfo *cInfo = new UserControlInfo();
+
     // Reset statistics for NR UEs
     if (isNr_)
     {
@@ -222,10 +232,6 @@ void LtePhyUe::checkEnbs()
         neighborDistance_[0] = 10000.0;
         neighborDistance_[1] = 10000.0;
     }
-
-    // this is a fictitious frame that needs to compute the SINR
-    LteAirFrame *frame = new LteAirFrame("cellSelectionFrame");
-    UserControlInfo *cInfo = new UserControlInfo();
 
     // get the list of all eNodeBs in the network
     std::vector<EnbInfo*>* enbList = binder_->getEnbList();
@@ -267,9 +273,9 @@ void LtePhyUe::checkEnbs()
             rsrp += *it1;
         rsrp /= rsrpV.size();
 
-        // Calculate statistics for NR UEs
-        if (isNr_)
-        {
+        /* Calculate statistics for NR UEs */
+
+        if (isNr_) {
             // Compute cell sinr
             double sinr = 0;
             std::vector<double>::iterator it2;
@@ -278,13 +284,14 @@ void LtePhyUe::checkEnbs()
                 sinr += *it2;
             sinr /= sinrV.size();
 
-            Coord coord = getRadioPosition();
-            double distance = coord.distance(cInfo->getCoord());
+            Coord coord = cInfo->getCoord();
+            double distance = getRadioPosition().distance(cInfo->getCoord());
 
             if(cellId == masterId_) {
                 masterPosX_ = coord.x;
                 masterPosY_ = coord.y;
                 masterRsrp_ = rsrp;
+                masterRsrq_ = primaryChannelModel_->getRSRQ(rsrp, cInfo);
                 masterSinr_ = sinr;
                 masterDistance_ = distance;
             } else {
@@ -551,7 +558,7 @@ void LtePhyUe::doHandover()
     fbGen->handleHandover(masterId_);
 
     // collect stat
-    emit(servingCell_, (long)masterId_);
+    //emit(servingCell_, (long)masterId_);
 
     if (masterId_ == 0)
         EV << NOW << " LtePhyUe::doHandover - UE " << nodeId_ << " detached from the network" << endl;
@@ -767,10 +774,13 @@ void LtePhyUe::handleUpperMessage(cMessage* msg)
 
 double LtePhyUe::updateHysteresisTh(double v)
 {
-    if (hysteresisFactor_ == 0)
-        return 0;
-    else
-        return v / hysteresisFactor_;
+//    if (hysteresisFactor_ == 0)
+//        return 0;
+//    else
+//        return v / hysteresisFactor_;
+
+    // Use the hysteresis absolute value instead of the hysteresisFactor
+    return hysteresis_;
 }
 
 void LtePhyUe::deleteOldBuffers(MacNodeId masterId)

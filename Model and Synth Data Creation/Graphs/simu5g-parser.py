@@ -4,10 +4,16 @@
 # OUTPUT: another csv file but much better lmao
 
 import pandas as pd
+import sys
 
-kpi_names = ["averageCqiDl:vector", "servingRSRP:vector", "servingRSRQ:vector",  "servingSINR:vector"]
+file_name = sys.argv[1] #file to parse
+
+kpi_names = ["positionX:vector", "positionY:vector", "servingDistance:vector", 
+             "servingCell:vector", "UEid:vector", "servingRSRP:vector", 
+             "servingRSRQ:vector",  "servingSINR:vector", "rlcThroughputDl:vector",
+             "timestamp:vector"]
 kpi_vectors = {}
-with open("data-simu5g.csv") as f:
+with open(file_name) as f:
     lines = f.readlines()
 
     for l in lines:
@@ -32,5 +38,6 @@ with open("data-simu5g.csv") as f:
 
 
 # Write vals to a csv file thats gonna look so much better thant the previous one
-df = pd.DataFrame.from_dict(kpi_vectors) 
-df.to_csv ('clean_data.csv', index=False, header=True)
+df = pd.DataFrame.from_dict(kpi_vectors, orient='index')
+df = df.transpose() 
+df.to_csv ('clean-{}'.format(file_name), index=False, header=True)

@@ -65,6 +65,8 @@ class LteDummyChannelModel : public LteChannelModel
     * @param lteinfo pointer to the user control info
     */
    virtual std::vector<double> getRSRP(LteAirFrame *frame, UserControlInfo* lteInfo);
+
+   virtual double getRSRQ(double rsrp, UserControlInfo* lteInfo);
    /*
     * Compute sinr for each band for a background UE according to pathloss
     *

@@ -139,6 +139,8 @@ class LteChannelModel : public omnetpp::cSimpleModule
      * @param lteinfo pointer to the user control info
      */
     virtual std::vector<double> getRSRP(LteAirFrame *frame, UserControlInfo* lteInfo) = 0;
+
+    virtual double getRSRQ(double rsrp, UserControlInfo* lteInfo) = 0;
     /*
      * Compute Received useful signal for D2D transmissions
      */

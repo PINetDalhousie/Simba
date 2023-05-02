@@ -30,6 +30,7 @@ class LtePhyUe : public LtePhyBase
     omnetpp::simsignal_t positionX_;
     omnetpp::simsignal_t positionY_;
     omnetpp::simsignal_t servingRSRP_;
+    omnetpp::simsignal_t servingRSRQ_;
     omnetpp::simsignal_t servingSINR_;
     omnetpp::simsignal_t servingDistance_;
     omnetpp::simsignal_t neighborTop1RSRP_;
@@ -38,6 +39,8 @@ class LtePhyUe : public LtePhyBase
     omnetpp::simsignal_t neighborTop2RSRP_;
     omnetpp::simsignal_t neighborTop2SINR_;
     omnetpp::simsignal_t neighborTop2Distance_;
+    omnetpp::simsignal_t timestamp_;
+    omnetpp::simsignal_t UEid_;
 
     /** Self message to trigger handover procedure evaluation */
     omnetpp::cMessage *handoverStarter_;
@@ -65,10 +68,12 @@ class LtePhyUe : public LtePhyBase
      * Use zero to have hysteresisTh_ == 0.
      */
     double hysteresisFactor_;
+    double hysteresis_;
 
     double masterPosX_;
     double masterPosY_;
     double masterRsrp_;
+    double masterRsrq_;
     double masterSinr_;
     double masterDistance_;
     double neighborRSRP_[2];
