@@ -1,3 +1,8 @@
-venv/
+venv
 *libsimu5g*
 anomaly_detection/data/
+anomaly_detection/scalers/
+anomaly_detection/models/
+anomaly_detection/logs/
+RCA/logs/
+RCA/data/
