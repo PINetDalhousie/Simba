@@ -1,0 +1,3 @@
+[submodule "RCA/MTGNN"]
+	path = RCA/MTGNN
+	url = https://github.com/antorhasan/MTGNN.git
