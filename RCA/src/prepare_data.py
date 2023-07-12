@@ -43,7 +43,6 @@ class PrepareData:
         for key, value in self.faults.items():
             value = value.groupby(['timestamp:vector','servingCell:vector']).mean().reset_index()
 
-
     def label_normal(self):
         '''
         Label normal data
@@ -95,7 +94,7 @@ def prepare_data():
     prepare_data = PrepareData()
 
     prepare_data.read_data(
-        '../data/June-28/'
+        '../data/latest/'
         )
     
     # cast columns to int
@@ -123,6 +122,7 @@ def prepare_data():
 def prepare_solar_data():
     solar = pd.read_csv('../MTGNN/data/solar_AL.txt', sep=',')
     print(solar.head())
+    print(solar.info(verbose=True))
 
 def main():
 
@@ -235,6 +235,6 @@ def main():
 
 
 if __name__ == '__main__':
-    #prepare_solar_data()
+    prepare_solar_data()
     # main()
-    prepare_data()
+    #prepare_data()
