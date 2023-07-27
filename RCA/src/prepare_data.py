@@ -32,6 +32,7 @@ class PrepareData:
         # cast cell id to int
         for key, value in self.faults.items():
             value['servingCell:vector'] = np.floor(value['servingCell:vector']).astype(int)
+            
         
     def cast_timestamp_to_int(self):
         # multiply by 10^len(decimal places)
@@ -73,17 +74,19 @@ class PrepareData:
         return combined_df
 
     @staticmethod
-    def remove_columns(df):
+    def remove_columns(
+        df,
+        columns = [
+            'timestamp:vector',
+            'servingCell:vector',
+            'UEid:vector',
+            'Unnamed: 0'
+            ]):
         '''
         Remove timestamp, cell id, and ue id
         '''
         df.drop(
-            [
-                'timestamp:vector',
-                'servingCell:vector',
-                'UEid:vector',
-                'Unnamed: 0'
-            ],
+            columns,
             axis=1,
             inplace=True
             )
@@ -233,8 +236,55 @@ def main():
         writer.write(example.SerializeToString())
     writer.close()
 
+def prepare_mtgnn_data():
+    prepare_data = PrepareData()
+
+    prepare_data.read_data(
+        '../data/latest/'
+        )
+    
+    # cast columns to int
+    prepare_data.cast_cell_to_int()
+    prepare_data.cast_timestamp_to_int()
+
+    # aggregate using cell id and timestamp
+    prepare_data.aggregate()
+
+    # label data
+    prepare_data.label_normal()
+
+    # combine dataframes
+    combined_df = prepare_data.merge()
+
+    # remove all columns except for servingcell,timestamp and SINR
+    keep_columns = [
+        'servingCell:vector',
+        'timestamp:vector',
+        'servingSINR:vector'
+        ]
+    # drop all other columns
+    combined_df = combined_df.drop(columns=[col for col in combined_df.columns if col not in keep_columns])
+    
+    # create a new dataframe where each column is SINR values of one cell id
+    new_dataframe = pd.DataFrame()
+
+    # iterate over unique cell ids and retrieve dataframe for each cell id
+    for cell_id in combined_df['servingCell:vector'].unique():
+        # get dataframe for current cell id
+        cell_df = combined_df[combined_df['servingCell:vector']==cell_id]
+        # sort by timestamp
+        cell_df = cell_df.sort_values(by='timestamp:vector')
+        # reset index
+        cell_df = cell_df.reset_index(drop=True)
+        # add SINR values untill 161098 to new dataframe
+        new_dataframe[cell_id] = cell_df['servingSINR:vector'].values[:161098]
+
+    # save new_dataframe to a comma separated .txt file
+    new_dataframe.to_csv('../MTGNN/data/sinr.txt', sep=',', index=False, header=False)
+
 
 if __name__ == '__main__':
-    prepare_solar_data()
+    #prepare_solar_data()
     # main()
     #prepare_data()
+    prepare_mtgnn_data()
