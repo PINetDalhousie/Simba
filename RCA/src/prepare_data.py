@@ -44,25 +44,25 @@ class PrepareData:
         for key, value in self.faults.items():
             value = value.groupby(['timestamp:vector','servingCell:vector']).mean().reset_index()
 
-    def label_normal(self):
+    def label_normal(self,class_id):
         '''
         Label normal data
         '''
-        self.faults['normal']['label'] = 0
+        self.faults['normal']['label'] = class_id
 
-    def label_epr(self,cell_id):
+    def label_epr(self,cell_id,class_id):
         '''
         Label epr data
         '''
         self.faults['epr']['label'] = 0
-        self.faults['epr']['label'] = self.faults['epr'].apply(lambda x: 1 if x['servingCell:vector']==cell_id else x['label'],axis=1)
+        self.faults['epr']['label'] = self.faults['epr'].apply(lambda x: class_id if x['servingCell:vector']==cell_id else x['label'],axis=1)
 
-    def label_interference(self,cell_id):
+    def label_interference(self,cell_id,class_id):
         '''
         Label interference data
         '''
         self.faults['interference']['label'] = 0
-        self.faults['interference']['label'] = self.faults['interference'].apply(lambda x: 2 if x['servingCell:vector']==cell_id else x['label'],axis=1)
+        self.faults['interference']['label'] = self.faults['interference'].apply(lambda x: class_id if x['servingCell:vector']==cell_id else x['label'],axis=1)
 
 
     def merge(self):
@@ -251,7 +251,9 @@ def prepare_mtgnn_data():
     prepare_data.aggregate()
 
     # label data
-    prepare_data.label_normal()
+    prepare_data.label_normal(class_id=0)
+    prepare_data.label_epr(cell_id=2,class_id=1)
+    prepare_data.label_interference(cell_id=5,class_id=1)
 
     # combine dataframes
     combined_df = prepare_data.merge()
@@ -260,11 +262,13 @@ def prepare_mtgnn_data():
     keep_columns = [
         'servingCell:vector',
         'timestamp:vector',
-        'servingSINR:vector'
+        'servingSINR:vector',
+        'servingRSRP:vector',
+        'label'
         ]
     # drop all other columns
     combined_df = combined_df.drop(columns=[col for col in combined_df.columns if col not in keep_columns])
-    
+
     # create a new dataframe where each column is SINR values of one cell id
     new_dataframe = pd.DataFrame()
 
@@ -277,10 +281,23 @@ def prepare_mtgnn_data():
         # reset index
         cell_df = cell_df.reset_index(drop=True)
         # add SINR values untill 161098 to new dataframe
-        new_dataframe[cell_id] = cell_df['servingSINR:vector'].values[:161098]
+        new_dataframe[f"{cell_id}_sinr"] = cell_df['servingSINR:vector'].values[:161098]
+        new_dataframe[f"{cell_id}_rsrp"] = cell_df['servingRSRP:vector'].values[:161098]
+        
+        
+    # iterate over unique cell ids and retrieve dataframe for each cell id
+    for cell_id in combined_df['servingCell:vector'].unique():
+        # get dataframe for current cell id
+        cell_df = combined_df[combined_df['servingCell:vector']==cell_id]
+        # sort by timestamp
+        cell_df = cell_df.sort_values(by='timestamp:vector')
+        # reset index
+        cell_df = cell_df.reset_index(drop=True)
+        # add label column for each cell as well
+        new_dataframe[f"{cell_id}_label"] = cell_df['label'].values[:161098]
 
     # save new_dataframe to a comma separated .txt file
-    new_dataframe.to_csv('../MTGNN/data/sinr.txt', sep=',', index=False, header=False)
+    new_dataframe.to_csv('../MTGNN/data/sinr_label_multi.txt', sep=',', index=False, header=False)
 
 
 if __name__ == '__main__':
