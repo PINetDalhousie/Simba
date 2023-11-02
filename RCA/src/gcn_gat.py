@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 from torch_geometric.datasets import Planetoid
 from torch_geometric.utils import to_networkx
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
+from torch_geometric.utils import to_undirected
 
 # Import dataset from PyTorch Geometric
 dataset = Planetoid(root=".", name="CiteSeer")
@@ -113,30 +115,42 @@ class GraphCons(torch.nn.Module):
 
 class GCN(torch.nn.Module):
   """Graph Convolutional Network"""
-  def __init__(self, dim_in, dim_h, dim_out):
+  def __init__(self, dim_in, dim_h, dim_out, num_nodes):
     super().__init__()
 
-    self.gc = graph_constructor(
+    self.gc = GraphCons(
         num_nodes, 
-        subgraph_size, 
-        node_dim,s 
+        num_nodes, 
+        dim=40,
         )
 
+    self.idx = torch.arange(num_nodes)
 
     self.gcn1 = GCNConv(dim_in, dim_h)
+    #self.gcn1.lin.weight = self.gcn1.lin.weight.float()
+    #self.gcn1.lin.bias = self.gcn1.lin.bias.float()
+
     self.gcn2 = GCNConv(dim_h, dim_out)
-    self.optimizer = torch.optim.Adam(self.parameters(),
-                                      lr=0.01,
-                                      weight_decay=5e-4)
 
-  def forward(self, x, edge_index):
+  def forward(self, x):
+    # MTGNN graph construction
+    x = x.float()
+    edge_index = self.gc(self.idx)
+    # Convert adjacency matrix to edge list of sparse tensor
+    edge_index = edge_index.nonzero().t().contiguous()
 
-    
-    h = F.dropout(x, p=0.5, training=self.training)
-    h = self.gcn1(h, edge_index)
+
+    #h = F.dropout(x, p=0.5, training=self.training)
+    h = self.gcn1(x, edge_index)
+    print(h)
+    print(asd)
     h = torch.relu(h)
-    h = F.dropout(h, p=0.5, training=self.training)
+    #h = F.dropout(h, p=0.5, training=self.training)
     h = self.gcn2(h, edge_index)
+
+    print(edge_index)
+    print(adp)
+    print(asd)
     return h, F.log_softmax(h, dim=1)
 
 
@@ -258,7 +272,10 @@ data_list = []
 # Iterate over rows
 for i in range(train_size):
     # Create a Data object for each graph
-    data = Data(x=torch.tensor(train_features[i]), y=torch.tensor(train_labels[i]))
+    data = Data(
+        x=torch.tensor(train_features[i], dtype=torch.double), 
+        y=torch.tensor(train_labels[i], dtype=torch.double),
+    )
     # Append to list
     data_list.append(data)
 
@@ -276,17 +293,25 @@ class CustomDataset(Dataset):
         return len(self.graphs)
 
     def get(self, idx):
+        
         return self.graphs[idx]
 
 dataset = CustomDataset(data_list)
-batch_size = 32  # Define your desired batch size
+batch_size = 1  # Define your desired batch size
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+NUM_CLASSES = 2
+epochs = 10
 
 model_name = 'GCN'
 if model_name == 'GCN':
-    model = GCN(dataset.num_features, 16, dataset.num_classes)
+    model = GCN(7, 16, NUM_CLASSES, NUM_NODES)
 elif model_name == 'GAT':
-    model = GAT(dataset.num_features, 8, dataset.num_classes)
+    model = GAT(dataset.num_features, 8, NUM_CLASSES)
+
+optimizer = torch.optim.Adam(model.parameters(),
+                                      lr=0.001,
+                                      weight_decay=5e-4)
 
 for epoch in range(epochs+1):
     # Training
@@ -294,11 +319,15 @@ for epoch in range(epochs+1):
     optimizer.zero_grad()
 
     for batch in dataloader:
-        print(batch)
-        print(batch.x.shape)
-        print(batch.y.shape)
+        # print(batch)
+        # print(batch.x)
+        # print(batch.y)
+        # print(asd)
 
-        out = model(batch.x, batch.edge_index)
+        # cast to double
+        #batch.x = batch.x.double()
+
+        out = model(batch.x)
         print(asd)
 
 print(train_features.shape)
