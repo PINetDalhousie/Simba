@@ -300,8 +300,11 @@ def prepare_mtgnn_data():
     new_dataframe.to_csv('../MTGNN/data/sinr_label_multi.txt', sep=',', index=False, header=False)
 
 
+
+
 if __name__ == '__main__':
     #prepare_solar_data()
     # main()
-    #prepare_data()
-    prepare_mtgnn_data()
+    #sprepare_data()
+    #prepare_mtgnn_data()
+    pass
