@@ -4,145 +4,223 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
+pd.set_option('display.max_columns', None)
 
 
 
-# Returns a dictionary of dataframes with average metrics for each base station
-def dfs_by_base_station(df):
-    baseStationDFs = {}
+def set_time_index(df):
+    """
+    This function takes a DataFrame and performs two main operations:
+    1. Drops the first column of the DataFrame.
+    2. Converts the 'timestamp:vector' column to a timedelta, sets it as the index of the DataFrame, 
+       and keeps the column in the DataFrame.
 
-    # Bins go from 0 -> end of simulation data by seconds
-    min_timestamp = pd.Timedelta(0)
-    max_timestamp = df.index.max()
-    time_range = pd.timedelta_range(start=min_timestamp, end=max_timestamp, freq='S')
+    Args:
+        df (pd.DataFrame): The input DataFrame.
 
-    # Get a dataframe for every unique servingCell ID
-    for cellID in df['servingCell:vector'].unique():
-
-        # Can remove this when we figure out the non-integer values
-        if cellID.is_integer():
-
-            # Generate a dataframe for each base station ID where metrics are averaged in each bin
-            bsDF = df[df['servingCell:vector'] == cellID]
-            bsDF_bins = pd.cut(bsDF.index, time_range)
-            bsDF = bsDF.groupby(bsDF_bins).mean()
-            baseStationDFs[cellID] = bsDF
-
-    return baseStationDFs
-
-
-# Returns a dataframe where basestation dataframes are joined by their timestamps
-def concat_base_stations(bsDFs):
-
-    # Get first base station and add label to columns
-    cellIDs = iter(bsDFs)
-    first_id = next(cellIDs)
-    concat_df = bsDFs[first_id]
-    concat_df = concat_df.add_suffix(f'_{first_id}')
-    print(first_id)
-
-    # Merge the rest of the base stations by index (should be timestamp bins)
-    for id in cellIDs:
-        print(id)
-        concat_df = pd.merge(
-            concat_df, bsDFs[id].add_suffix(f'_{id}'), left_index=True, right_index=True)
-
-    return concat_df
-
-
-# Returns a dataframe where basestation dataframes are joined by their timestamps
-def concat_base_stations(bsDFs):
-
-    # Get first base station and add label to columns
-    cellIDs = iter(bsDFs)
-    first_id = next(cellIDs)
-    concat_df = bsDFs[first_id]
-    concat_df = concat_df.add_suffix(f'_{first_id}')
-    print(first_id)
-
-    # Merge the rest of the base stations by index (should be timestamp bins)
-    for id in cellIDs:
-        print(id)
-        concat_df = pd.merge(
-            concat_df, bsDFs[id].add_suffix(f'_{id}'), left_index=True, right_index=True)
-
-    return concat_df
-
-
-def prepare_data():
-    save_path = "../data/"
-
-    # Read data
-    epr_df = pd.read_csv('../data/calibrated/EPR686.csv')
-
-    # Drop index and columns we aren't using
-    epr_df.drop(columns=[epr_df.columns[0]], inplace=True)
-
-    # Print dataframe info
-    #print(epr_df.info(verbose=True))
-
-    # For servingCell 7 or 8 and timestamp greater than 50 set label to 1
-    #epr_df.loc[(epr_df['servingCell:vector'] == 7) & (epr_df['timestamp:vector'] > 50), 'label'] = 1
-    #epr_df.loc[(epr_df['servingCell:vector'] == 8) & (epr_df['timestamp:vector'] > 50), 'label'] = 1
-
+    Returns:
+        df (pd.DataFrame): The modified DataFrame with the 'timestamp:vector' column set as the index.
+    """
+    # Drop index column
+    df.drop(columns=[df.columns[0]], inplace=True)
     # Use timestamp as index
-    epr_df['timestamp:vector'] = pd.to_timedelta(epr_df['timestamp:vector'], unit='S')
-    epr_df.set_index('timestamp:vector', inplace=True, drop=False)
+    df['timestamp:vector'] = pd.to_timedelta(df['timestamp:vector'], unit='S')
+    df.set_index('timestamp:vector', inplace=True, drop=False)
+    return df
 
+
+def aggregate_by_timedelta(df, timedelta):
+    """
+    This function aggregates data in a DataFrame based on a given timedelta. It performs the following steps:
+    1. Determines the minimum and maximum timestamps in the DataFrame.
+    2. Creates a range of timestamps from the minimum to the maximum with a frequency of the given timedelta.
+    3. Iterates over each unique 'servingCell:vector' in the DataFrame.
+    4. For each 'servingCell:vector', it iterates over each unique 'UEid:vector'.
+    5. It groups the data by the timestamp bins and calculates the mean for each group.
+    6. It appends the resulting DataFrame to a list.
+    7. Finally, it concatenates all the DataFrames in the list into a single DataFrame.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        timedelta (str): The timedelta for grouping the data.
+
+    Returns:
+        df (pd.DataFrame): The aggregated DataFrame.
+    """
+    
     # Bins go from 0 -> end of simulation data by seconds
-    min_timestamp = epr_df.index.min()
-    #min_timestamp = pd.Timedelta(0)
-    max_timestamp = epr_df.index.max()
-    time_range = pd.timedelta_range(start=min_timestamp, end=max_timestamp, freq='.1S')
-
+    min_timestamp = df.index.min()
+    max_timestamp = df.index.max()
+    time_range = pd.timedelta_range(start=min_timestamp, end=max_timestamp, freq=timedelta)
     concat_DF = []
-    # Get a dataframe for every unique servingCell ID
-    for cellID in epr_df['servingCell:vector'].unique():
-        bsDF = epr_df[epr_df['servingCell:vector'] == cellID]
-        # Get a dataframe for every unique servingCell ID
+    for cellID in df['servingCell:vector'].unique():
+        bsDF = df[df['servingCell:vector'] == cellID]
         for UEid in bsDF['UEid:vector'].unique():
             ueDF = bsDF[bsDF['UEid:vector'] == UEid]
             ueDF_bins = pd.cut(ueDF.index, time_range)
             ueDF = ueDF.groupby(ueDF_bins).mean()
-            concat_DF.append(ueDF)
-            # Remove nan rows
             ueDF.dropna(inplace=True)
+            concat_DF.append(ueDF)
+    # Concatenate all dataframes
+    df = pd.concat(concat_DF, ignore_index=False)
+    return df
+    
+
+def set_time_from_interval(df):
+    """
+    This function takes a DataFrame and sets the timestamp column as the start
+    time of the time interval in the index of the dataframe.
+    """
+
+
+def aggregate_across_basestations(
+        df,
+        fault_start,
+        fault_end,
+        servingCells,
+        ):
+    """
+    This function aggregates data across base stations. It performs the following steps:
+    1. If fault_end is not provided, it sets it to the maximum timestamp in the DataFrame.
+    2. If fault_start is not provided, it sets it to 0.0.
+    3. Converts fault_start and fault_end to Timedelta.
+    4. Iterates over each unique 'servingCell:vector' in the DataFrame.
+    5. For each 'servingCell:vector', it groups the data by the index and calculates the mean for each group.
+    6. It then labels each row where 'servingCell:vector' is in servingCells and the timestamp is between fault_start and fault_end.
+    7. It appends the resulting DataFrame to a list.
+    8. Finally, it concatenates all the DataFrames in the list into a single DataFrame.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        fault_start (float): The start time for labeling. If None, it is set to 0.0.
+        fault_end (float): The end time for labeling. If None, it is set to the maximum timestamp in df.
+        servingCells (list): The list of serving cells for labeling.
+
+    Returns:
+        df (pd.DataFrame): The aggregated DataFrame.
+    """
+    # Set default values for fault_start and fault_end if not provided
+    if fault_end is None:
+        fault_end = df.index.max()
+    if fault_start is None:
+        fault_start = 0.0
+
+    # Convert fault_start and fault_end to Timedelta
+    fault_start = pd.Timedelta(fault_start, unit='S')
+    fault_end = pd.Timedelta(fault_end, unit='S')
+    
+    concat_DF = []
+    # Iterate over each unique 'servingCell:vector'
+    for cellID in df['servingCell:vector'].unique():
+        bsDF = df[df['servingCell:vector'] == cellID]
+        # Group by index and calculate mean
+        bsDF = bsDF.groupby(by=[bsDF.index]).mean()
+        # Label rows where 'servingCell:vector' is in servingCells and timestamp is between fault_start and fault_end
+        for cell in servingCells:
+            bsDF.loc[(bsDF['servingCell:vector'] == cell) & (bsDF.index > fault_start) & (bsDF.index < fault_end), 'label'] = 1
+        concat_DF.append(bsDF)
     
     # Concatenate all dataframes
-    epr_df = pd.concat(concat_DF, ignore_index=False)
+    df = pd.concat(concat_DF, ignore_index=False)
+    return df
 
-    # Save csv
-    epr_df.to_csv(save_path + "test_before.csv", index_label='timestamp')
 
+def write_MTGNN_data(df,keep_rows, save_path):
+
+    # Save data for MTGNN
+    new_dataframe = pd.DataFrame()
+    # iterate over unique cell ids and retrieve dataframe for each cell id
+    for cell_id in df['servingCell:vector'].unique():
+        # get dataframe for current cell id
+        cell_df = df[df['servingCell:vector']==cell_id]
+        # sort by timestamp
+        cell_df = cell_df.sort_values(by='timestamp:vector')
+        # reset index
+        cell_df = cell_df.reset_index(drop=True)
+        # add SINR values untill 1954 to new dataframe
+        new_dataframe[f"{cell_id}_posx"] = cell_df['positionX:vector'].values[:keep_rows]
+        new_dataframe[f"{cell_id}_posy"] = cell_df['positionY:vector'].values[:keep_rows]
+        new_dataframe[f"{cell_id}_dist"] = cell_df['servingDistance:vector'].values[:keep_rows]
+        new_dataframe[f"{cell_id}_rsrp"] = cell_df['servingRSRP:vector'].values[:keep_rows]
+        new_dataframe[f"{cell_id}_rsrq"] = cell_df['servingRSRQ:vector'].values[:keep_rows]
+        new_dataframe[f"{cell_id}_sinr"] = cell_df['servingSINR:vector'].values[:keep_rows]
+        new_dataframe[f"{cell_id}_thro"] = cell_df['rlcThroughputDl:vector'].values[:keep_rows]
+        
+    # iterate over unique cell ids and retrieve dataframe for each cell id
+    for cell_id in df['servingCell:vector'].unique():
+        # get dataframe for current cell id
+        cell_df = df[df['servingCell:vector']==cell_id]
+        # sort by timestamp
+        cell_df = cell_df.sort_values(by='timestamp:vector')
+        # reset index
+        cell_df = cell_df.reset_index(drop=True)
+        # add label column for each cell as well
+        new_dataframe[f"{cell_id}_label"] = cell_df['label'].values[:keep_rows]
+
+    # save new_dataframe to a comma separated .txt file
+    new_dataframe.to_csv(save_path+'calibrated_multi.txt', sep=',', index=False, header=False)
+
+
+def write_FCN_data(df,keep_rows, save_path):
+    # Save data for FCN
+    fcn_df = []
+    for cell_id in df['servingCell:vector'].unique():
+        # get dataframe for current cell id
+        cell_df = df[df['servingCell:vector']==cell_id]
+        # sort by timestamp
+        cell_df = cell_df.sort_values(by='timestamp:vector')
+        # Keep only the first 2509 rows
+        cell_df = cell_df[:keep_rows]
+        # append to list
+        fcn_df.append(cell_df)
+    
+    # Concatenate all dataframes
+    df = pd.concat(fcn_df, ignore_index=False)
+    # Remove timestamp column
+    #epr_df.drop(columns=['timestamp:vector','servingCell:vector'], inplace=True)
+    df.drop(columns=['servingCell:vector'], inplace=True)
+
+    # Ignore index while saving to csv
+    df.to_csv(save_path + "data_FCN.csv", index=False)
+
+def set_time_from_interval(df):
+    """
+    This function takes a DataFrame and sets the timestamp column as the start
+    time of the time interval in the index of the dataframe.
+    """
+    df.index = df.index.map(lambda x: x.left)
+    df.index = pd.to_timedelta(df.index)
+    df['timestamp:vector'] = df.index
+
+
+def prepare_data():
+    save_path = "../data/prepared/"
+    data_path = "../data/calibrated/EPR686.csv"
+    fault_start = 50.0
+    fault_end = None
+    servingCells = [7, 8]
+    keep_rows = 971
+
+    # Read data
+    epr_df = pd.read_csv(data_path)
+
+    # Set timestamp as index
+    epr_df = set_time_index(epr_df)
+
+    # Aggregate data by 0.1 seconds for user equipments
+    epr_df = aggregate_by_timedelta(epr_df, timedelta='.1S')
+
+    epr_df = set_time_from_interval(epr_df)
+    
     # Add column label and set all to zero
     epr_df['label'] = 0
 
-    # Groupby and mean with same servingCell and timestamp
-    concat_DF = []
-    # Get a dataframe for every unique servingCell ID
-    for cellID in epr_df['servingCell:vector'].unique():
-        bsDF = epr_df[epr_df['servingCell:vector'] == cellID]
-        # Groupby timestamp:vector and get mean across features and keep the timestamp column
-        bsDF = bsDF.groupby(by=['timestamp:vector']).mean()
-
-        # Initialize pd.Timedelta to 50 seconds
-        fifty_seconds = pd.Timedelta(50.0, unit='S')
-
-        # If servingCell is 7 and timestamp is greater than 50 seconds set label to 1
-        bsDF.loc[(bsDF['servingCell:vector'] == 7) & (bsDF.index > fifty_seconds), 'label'] = 1
-        # If servingCell is 8 and timestamp is greater than 50 set label to 1
-        bsDF.loc[(bsDF['servingCell:vector'] == 8) & (bsDF.index > fifty_seconds), 'label'] = 1
-
-        bsDF['timestamp:vector'] = bsDF.index
-        concat_DF.append(bsDF)
-        # Remove nan rows
-        #bsDF.dropna(inplace=True)
-     
-    # Concatenate all dataframes
-    epr_df = pd.concat(concat_DF, ignore_index=False)
-
-    # Add column timestamp:vector
-    epr_df['timestamp:vector'] = epr_df.index
+    epr_df = aggregate_across_basestations(
+        epr_df,
+        fault_start=fault_start,
+        fault_end=fault_end,
+        servingCells=servingCells,
+        )
 
     # Remove UEid column
     epr_df.drop(columns=['UEid:vector'], inplace=True)
@@ -153,135 +231,15 @@ def prepare_data():
     # Count the number of rows for each servingCell
     print(epr_df['servingCell:vector'].value_counts())
 
-    # Drop rows with servingCell 6.0
+    # Drop rows with servingCell 6.0 and 9.0
     epr_df = epr_df[epr_df['servingCell:vector'] != 6.0]
     epr_df = epr_df[epr_df['servingCell:vector'] != 9.0]
+
+    # Write data for MTGNN
+    write_MTGNN_data(epr_df,keep_rows, save_path)
     
-    # Save data for MTGNN
-    # create a new dataframe where each column is SINR values of one cell id
-    new_dataframe = pd.DataFrame()
-
-    ROWS_TO_KEEP = 2455
-
-    # iterate over unique cell ids and retrieve dataframe for each cell id
-    for cell_id in epr_df['servingCell:vector'].unique():
-        # get dataframe for current cell id
-        cell_df = epr_df[epr_df['servingCell:vector']==cell_id]
-        # sort by timestamp
-        cell_df = cell_df.sort_values(by='timestamp:vector')
-        # reset index
-        cell_df = cell_df.reset_index(drop=True)
-        # add SINR values untill 1954 to new dataframe
-        new_dataframe[f"{cell_id}_posx"] = cell_df['positionX:vector'].values[:ROWS_TO_KEEP]
-        new_dataframe[f"{cell_id}_posy"] = cell_df['positionY:vector'].values[:ROWS_TO_KEEP]
-        new_dataframe[f"{cell_id}_dist"] = cell_df['servingDistance:vector'].values[:ROWS_TO_KEEP]
-        new_dataframe[f"{cell_id}_rsrp"] = cell_df['servingRSRP:vector'].values[:ROWS_TO_KEEP]
-        new_dataframe[f"{cell_id}_rsrq"] = cell_df['servingRSRQ:vector'].values[:ROWS_TO_KEEP]
-        new_dataframe[f"{cell_id}_sinr"] = cell_df['servingSINR:vector'].values[:ROWS_TO_KEEP]
-        new_dataframe[f"{cell_id}_thro"] = cell_df['rlcThroughputDl:vector'].values[:ROWS_TO_KEEP]
-        
-    # iterate over unique cell ids and retrieve dataframe for each cell id
-    for cell_id in epr_df['servingCell:vector'].unique():
-        # get dataframe for current cell id
-        cell_df = epr_df[epr_df['servingCell:vector']==cell_id]
-        # sort by timestamp
-        cell_df = cell_df.sort_values(by='timestamp:vector')
-        # reset index
-        cell_df = cell_df.reset_index(drop=True)
-        # add label column for each cell as well
-        new_dataframe[f"{cell_id}_label"] = cell_df['label'].values[:ROWS_TO_KEEP]
-
-    # save new_dataframe to a comma separated .txt file
-    new_dataframe.to_csv('../MTGNN/data/calibrated_multi.txt', sep=',', index=False, header=False)
-
-    # Save data for FCN
-    fcn_df = []
-    for cell_id in epr_df['servingCell:vector'].unique():
-        # get dataframe for current cell id
-        cell_df = epr_df[epr_df['servingCell:vector']==cell_id]
-        # sort by timestamp
-        cell_df = cell_df.sort_values(by='timestamp:vector')
-        # Keep only the first 2509 rows
-        cell_df = cell_df[:ROWS_TO_KEEP]
-        # append to list
-        fcn_df.append(cell_df)
-    
-    # Concatenate all dataframes
-    epr_df = pd.concat(fcn_df, ignore_index=False)
-    # Remove timestamp column
-    epr_df.drop(columns=['timestamp:vector','servingCell:vector'], inplace=True)
-    # Ignore index while saving to csv
-    epr_df.to_csv(save_path + "data_FCN.csv", index=False)
-    
-    epr_run = dfs_by_base_station(epr_df)
-
-    #normal_concat = concat_base_stations(normal_run)
-    epr_concat = concat_base_stations(epr_run)
-    epr_concat.to_csv(save_path + "test.csv", index_label='timestamp')
-
-
-def prepare_fcn_data():
-    prepare_data = PrepareData()
-
-    prepare_data.read_data(
-        '../data/latest/'
-        )
-    
-    # cast columns to int
-    prepare_data.cast_cell_to_int()
-    prepare_data.cast_timestamp_to_int()
-
-    # aggregate using cell id and timestamp
-    prepare_data.aggregate()
-
-    # label data
-    prepare_data.label_normal(class_id=0)
-    prepare_data.label_epr(cell_id=2,class_id=1)
-    prepare_data.label_interference(cell_id=5,class_id=1)
-
-    # combine dataframes
-    combined_df = prepare_data.merge()
-
-    # remove all columns except for servingcell,timestamp and SINR
-    keep_columns = [
-        'servingCell:vector',
-        'timestamp:vector',
-        'servingSINR:vector',
-        'servingRSRP:vector',
-        'label'
-        ]
-    # drop all other columns
-    combined_df = combined_df.drop(columns=[col for col in combined_df.columns if col not in keep_columns])
-
-    # create a new dataframe where each column is SINR values of one cell id
-    new_dataframe = pd.DataFrame()
-
-    # iterate over unique cell ids and retrieve dataframe for each cell id
-    for cell_id in combined_df['servingCell:vector'].unique():
-        # get dataframe for current cell id
-        cell_df = combined_df[combined_df['servingCell:vector']==cell_id]
-        # sort by timestamp
-        cell_df = cell_df.sort_values(by='timestamp:vector')
-        # reset index
-        cell_df = cell_df.reset_index(drop=True)
-        # add SINR values untill 161098 to new dataframe
-        new_dataframe[f"{cell_id}_sinr"] = cell_df['servingSINR:vector'].values[:161098]
-        new_dataframe[f"{cell_id}_rsrp"] = cell_df['servingRSRP:vector'].values[:161098]
-        
-        
-    # iterate over unique cell ids and retrieve dataframe for each cell id
-    for cell_id in combined_df['servingCell:vector'].unique():
-        # get dataframe for current cell id
-        cell_df = combined_df[combined_df['servingCell:vector']==cell_id]
-        # sort by timestamp
-        cell_df = cell_df.sort_values(by='timestamp:vector')
-        # reset index
-        cell_df = cell_df.reset_index(drop=True)
-        # add label column for each cell as well
-        new_dataframe[f"{cell_id}_label"] = cell_df['label'].values[:161098]
-
-    # save new_dataframe to a comma separated .txt file
-    new_dataframe.to_csv('../MTGNN/data/sinr_label_multi.txt', sep=',', index=False, header=False)
+    # Write data for FCN
+    write_FCN_data(epr_df,keep_rows, save_path)
 
 
 if __name__ == "__main__":

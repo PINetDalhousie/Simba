@@ -15,66 +15,9 @@ from torch_geometric.utils import to_networkx
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from torch_geometric.utils import to_undirected
+from metrics_pytorch import evaluate_metrics
 
-# Import dataset from PyTorch Geometric
-dataset = Planetoid(root=".", name="CiteSeer")
 
-data = dataset[0]
-
-# # Print information about the dataset
-# print(f'Dataset: {dataset}')
-# print('-------------------')
-# print(f'Number of graphs: {len(dataset)}')
-# print(f'Number of nodes: {data.x.shape[0]}')
-# print(f'Number of features: {dataset.num_features}')
-# print(f'Number of classes: {dataset.num_classes}')
-
-# # Print information about the graph
-# print(f'\nGraph:')
-# print('------')
-# print(f'Edges are directed: {data.is_directed()}')
-# print(f'Graph has isolated nodes: {data.has_isolated_nodes()}')
-# print(f'Graph has loops: {data.has_self_loops()}')
-
-# print(data)
-
-# from torch_geometric.utils import remove_isolated_nodes
-
-# isolated = (remove_isolated_nodes(data['edge_index'])[2] == False).sum(dim=0).item()
-# print(f'Number of isolated nodes = {isolated}')
-
-# from torch_geometric.utils import to_networkx
-
-# G = to_networkx(data, to_undirected=True)
-# plt.figure(figsize=(18,18))
-# plt.axis('off')
-# nx.draw_networkx(G,
-#                 pos=nx.spring_layout(G, seed=0),
-#                 with_labels=False,
-#                 node_size=50,
-#                 node_color=data.y,
-#                 width=2,
-#                 edge_color="grey"
-#                 )
-# plt.show()
-
-# print(asd)
-# from torch_geometric.utils import degree
-# from collections import Counter
-
-# # Get list of degrees for each node
-# degrees = degree(data.edge_index[0]).numpy()
-
-# # Count the number of nodes for each degree
-# numbers = Counter(degrees)
-
-# # Bar plot
-# fig, ax = plt.subplots(figsize=(18, 7))
-# ax.set_xlabel('Node degree')
-# ax.set_ylabel('Number of nodes')
-# plt.bar(numbers.keys(),
-#         numbers.values(),
-#         color='#0A047A')
 
 
 import torch.nn.functional as F
@@ -115,15 +58,17 @@ class GraphCons(torch.nn.Module):
 
 class GCN(torch.nn.Module):
   """Graph Convolutional Network"""
-  def __init__(self, dim_in, dim_h, dim_out, num_nodes):
+  def __init__(self, dim_in, dim_h, dim_out, num_nodes, batch_size):
     super().__init__()
-
+    self.num_nodes = num_nodes
     self.gc = GraphCons(
         num_nodes, 
         num_nodes, 
         dim=40,
         )
-
+    
+    self.batch_size = batch_size
+    self.repeat_range = int((self.batch_size-1) * num_nodes)
     self.idx = torch.arange(num_nodes)
 
     self.gcn1 = GCNConv(dim_in, dim_h)
@@ -138,39 +83,82 @@ class GCN(torch.nn.Module):
     edge_index = self.gc(self.idx)
     # Convert adjacency matrix to edge list of sparse tensor
     edge_index = edge_index.nonzero().t().contiguous()
+    # Create the repeating increasing graph
+    repeating_tensor = torch.arange(0,self.repeat_range+1,self.num_nodes) 
+    
+    # Add a dimension to the tensor
+    #repeating_tensor = repeating_tensor.unsqueeze(1)
+    repeating_tensor = repeating_tensor.repeat_interleave(edge_index.shape[1])
+    repeating_tensor = repeating_tensor.reshape(1,-1)
+    repeating_tensor = repeating_tensor.repeat(2,1)    
+    edge_index = edge_index.repeat(1, self.batch_size)
 
-
-    #h = F.dropout(x, p=0.5, training=self.training)
+    # Add the repeating tensor to the edge_index
+    edge_index = edge_index + repeating_tensor  
+    
+    #h = F.dropout( x, p=0.5, training=self.training)
     h = self.gcn1(x, edge_index)
-    print(h)
-    print(asd)
+    #print(h.shape)
+    #print(asd)
     h = torch.relu(h)
     #h = F.dropout(h, p=0.5, training=self.training)
     h = self.gcn2(h, edge_index)
-
-    print(edge_index)
-    print(adp)
-    print(asd)
-    return h, F.log_softmax(h, dim=1)
+    
+    h = F.softmax(h, dim=1)
+    return h
 
 
 class GAT(torch.nn.Module):
   """Graph Attention Network"""
-  def __init__(self, dim_in, dim_h, dim_out, heads=8):
+  def __init__(self, dim_in, dim_h, dim_out, num_nodes, batch_size, heads=8):
     super().__init__()
+
+    self.num_nodes = num_nodes
+    self.gc = GraphCons(
+        num_nodes, 
+        num_nodes, 
+        dim=40,
+        )
+    
+    self.batch_size = batch_size
+    self.repeat_range = int((self.batch_size-1) * num_nodes)
+    self.idx = torch.arange(num_nodes)
+
+
     self.gat1 = GATv2Conv(dim_in, dim_h, heads=heads)
     self.gat2 = GATv2Conv(dim_h*heads, dim_out, heads=1)
     self.optimizer = torch.optim.Adam(self.parameters(),
                                       lr=0.005,
                                       weight_decay=5e-4)
 
-  def forward(self, x, edge_index):
-    h = F.dropout(x, p=0.6, training=self.training)
+  def forward(self, x):
+
+    x = x.float()
+    edge_index = self.gc(self.idx)
+    # Convert adjacency matrix to edge list of sparse tensor
+    edge_index = edge_index.nonzero().t().contiguous()
+    # Create the repeating increasing graph
+    repeating_tensor = torch.arange(0,self.repeat_range+1,self.num_nodes) 
+    
+    # Add a dimension to the tensor
+    #repeating_tensor = repeating_tensor.unsqueeze(1)
+    repeating_tensor = repeating_tensor.repeat_interleave(edge_index.shape[1])
+    repeating_tensor = repeating_tensor.reshape(1,-1)
+    repeating_tensor = repeating_tensor.repeat(2,1)    
+    edge_index = edge_index.repeat(1, self.batch_size)
+
+    # Add the repeating tensor to the edge_index
+    edge_index = edge_index + repeating_tensor  
+
+
+    #h = F.dropout(x, p=0.6, training=self.training)
     h = self.gat1(x, edge_index)
-    h = F.elu(h)
-    h = F.dropout(h, p=0.6, training=self.training)
+    h = F.relu(h)
+    #h = F.dropout(h, p=0.6, training=self.training)
     h = self.gat2(h, edge_index)
-    return h, F.log_softmax(h, dim=1)
+    h = F.softmax(h, dim=1)
+    #h = F.log_softmax(h, dim=1)
+    return h
 
 def accuracy(pred_y, y):
     """Calculate accuracy."""
@@ -183,6 +171,7 @@ def train(model, data):
     epochs = 200
 
     model.train()
+    
     for epoch in range(epochs+1):
         # Training
         optimizer.zero_grad()
@@ -225,7 +214,6 @@ NUM_NODES = 4
 df = pd.read_csv('../data/calibrated_multi.txt', sep=',') 
 
 # Show the first 5 rows
-print(df.head())
 
 # Set last NUM_NODES columns as labels and the rest as features
 labels = df.iloc[:, -NUM_NODES:].values
@@ -255,9 +243,11 @@ num_features = train_features.shape[1]/NUM_NODES
 
 # Reshape features into a 3D matrix
 train_features = train_features.reshape(train_size, NUM_NODES, int(num_features))
+val_features = val_features.reshape(val_size, NUM_NODES, int(num_features))
 
 # Reshape labels into a 3D matrix
 train_labels = train_labels.reshape(train_size, NUM_NODES, 1)
+val_labels = val_labels.reshape(val_size, NUM_NODES, 1)
 
 # Iterate over train_features and create a Pytorch Geometric dataset
 # Each element in the dataset is a graph represented by torch_geometric.data.Data
@@ -265,23 +255,7 @@ train_labels = train_labels.reshape(train_size, NUM_NODES, 1)
 
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
-
-# Create empty lists
-data_list = []
-
-# Iterate over rows
-for i in range(train_size):
-    # Create a Data object for each graph
-    data = Data(
-        x=torch.tensor(train_features[i], dtype=torch.double), 
-        y=torch.tensor(train_labels[i], dtype=torch.double),
-    )
-    # Append to list
-    data_list.append(data)
-
-
 from torch_geometric.data import Dataset
-
 
 # Create a Pytorch Geometric dataset from the list of Data objects
 class CustomDataset(Dataset):
@@ -296,143 +270,118 @@ class CustomDataset(Dataset):
         
         return self.graphs[idx]
 
-dataset = CustomDataset(data_list)
-batch_size = 1  # Define your desired batch size
-dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+batch_size = 32  # Define your desired batch size
+
+# Create empty lists
+train_data_list = []
+# Iterate over rows
+for i in range(train_size):
+    # Create a Data object for each graph
+    data = Data(
+        x=torch.tensor(train_features[i], dtype=torch.double), 
+        y=torch.tensor(train_labels[i], dtype=torch.double),
+    )
+    # Append to list
+    train_data_list.append(data)
+from torch_geometric.data import Batch
+batch = Batch.from_data_list(train_data_list)
+train_dataset = CustomDataset(batch)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,drop_last=True)
+
+
+# Create empty lists
+val_data_list = []
+# Iterate over rows
+for i in range(val_size):
+    # Create a Data object for each graph
+    data = Data(
+        x=torch.tensor(val_features[i], dtype=torch.double), 
+        y=torch.tensor(val_labels[i], dtype=torch.double),
+    )
+    # Append to list
+    val_data_list.append(data)
+val_dataset = CustomDataset(val_data_list)
+val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,drop_last=True)
+
 
 NUM_CLASSES = 2
-epochs = 10
+epochs = 500
 
-model_name = 'GCN'
+model_name = 'GAT'
 if model_name == 'GCN':
-    model = GCN(7, 16, NUM_CLASSES, NUM_NODES)
+    model = GCN(7, 16, NUM_CLASSES, NUM_NODES, batch_size)
 elif model_name == 'GAT':
-    model = GAT(dataset.num_features, 8, NUM_CLASSES)
+    model = GAT(7, 16, NUM_CLASSES, NUM_NODES, batch_size)
 
-optimizer = torch.optim.Adam(model.parameters(),
-                                      lr=0.001,
-                                      weight_decay=5e-4)
+optimizer = torch.optim.Adam(
+                             model.parameters(),
+                                      lr=0.0001)
+
+criterion = torch.nn.CrossEntropyLoss(
+    weight=torch.tensor(
+        [0.24,1-0.24],
+        requires_grad=False),
+        reduction='mean',
+        )
+
 
 for epoch in range(epochs+1):
     # Training
     model.train()
     optimizer.zero_grad()
 
-    for batch in dataloader:
-        # print(batch)
-        # print(batch.x)
-        # print(batch.y)
-        # print(asd)
-
-        # cast to double
-        #batch.x = batch.x.double()
-
+    train_loss = 0
+    for batch in train_dataloader:
+        # Squeeze batch.y
+        label = batch.y.squeeze()
+        # One hot encode label
+        label = F.one_hot(label.long(), num_classes=NUM_CLASSES)
+        # Cast to float
+        label = label.float()
+    
         out = model(batch.x)
-        print(asd)
+        loss = criterion(out, label)
+        loss.backward()
+        optimizer.step()
+        train_loss += loss
 
-print(train_features.shape)
-print(train_features[0])
-print(train_labels.shape)
-print(asd)
+    print(f"done training")
 
-# Create Pytorch Geometric dataset from features and labels
-# Each row 
+    val_counter = 0
+    val_loss = 0
+    val_precision = 0
+    val_recall = 0
+    val_f1 = 0
 
-print(data)
+    model.eval()
+    with torch.no_grad():
+        for batch in val_dataloader:
+            # Squeeze batch.y
+            label = batch.y.squeeze().long()
 
-print(asd)
+            # One hot encode label
+            label_encoded = F.one_hot(label, num_classes=NUM_CLASSES)
+            # Cast to float
+            label_encoded = label_encoded.float()
 
-# Create GCN model
-gcn = GCN(dataset.num_features, 16, dataset.num_classes)
-print(gcn)
+            out = model(batch.x)
+            loss = criterion(out, label_encoded)
 
-# Train
-train(gcn, data)
+            # Take argmax of predictions
+            out = out.argmax(dim=1)
 
-# Test
-acc = test(gcn, data)
-print(f'\nGCN test accuracy: {acc*100:.2f}%\n')
+            precision, recall, f1 = evaluate_metrics(out, label)
 
+            val_loss += loss
+            val_precision += precision
+            val_recall += recall
+            val_f1 += f1
 
-# Create GAT model
-gat = GAT(dataset.num_features, 8, dataset.num_classes)
-print(gat)
+            val_counter += 1
 
-# Train
-train(gat, data)
-
-# Test
-acc = test(gat, data)
-print(f'\nGAT test accuracy: {acc*100:.2f}%\n')
-
-
-
-# Initialize new untrained model
-untrained_gat = GAT(dataset.num_features, 8, dataset.num_classes)
-
-# Get embeddings
-h, _ = untrained_gat(data.x, data.edge_index)
-
-# Train TSNE
-tsne = TSNE(n_components=2, learning_rate='auto',
-         init='pca').fit_transform(h.detach())
-
-# Plot TSNE
-plt.figure(figsize=(10, 10))
-plt.axis('off')
-plt.scatter(tsne[:, 0], tsne[:, 1], s=50, c=data.y)
-plt.show()
-
-
-# Get embeddings
-h, _ = gat(data.x, data.edge_index)
-
-# Train TSNE
-tsne = TSNE(n_components=2, learning_rate='auto',
-         init='pca').fit_transform(h.detach())
-
-# Plot TSNE
-plt.figure(figsize=(10, 10))
-plt.axis('off')
-plt.scatter(tsne[:, 0], tsne[:, 1], s=50, c=data.y)
-plt.show()
-
-from torch_geometric.utils import degree
-
-# Get model's classifications
-_, out = gat(data.x, data.edge_index)
-
-# Calculate the degree of each node
-degrees = degree(data.edge_index[0]).numpy()
-
-# Store accuracy scores and sample sizes
-accuracies = []
-sizes = []
-
-# Accuracy for degrees between 0 and 5
-for i in range(0, 6):
-  mask = np.where(degrees == i)[0]
-  accuracies.append(accuracy(out.argmax(dim=1)[mask], data.y[mask]))
-  sizes.append(len(mask))
-
-# Accuracy for degrees > 5
-mask = np.where(degrees > 5)[0]
-accuracies.append(accuracy(out.argmax(dim=1)[mask], data.y[mask]))
-sizes.append(len(mask))
-
-# Bar plot
-fig, ax = plt.subplots(figsize=(18, 9))
-ax.set_xlabel('Node degree')
-ax.set_ylabel('Accuracy score')
-plt.bar(['0','1','2','3','4','5','>5'],
-        accuracies,
-        color='#0A047A')
-for i in range(0, 7):
-    plt.text(i, accuracies[i], f'{accuracies[i]*100:.2f}%',
-             ha='center', color='#0A047A')
-for i in range(0, 7):
-    plt.text(i, accuracies[i]//2, sizes[i],
-             ha='center', color='white')
-
-if __name__ == "__main__":
-    pass
+    # Print metrics 
+    print(f"Epoch {epoch:>3} | Train Loss: {train_loss / len(train_dataloader):.3f}")
+    print(f"val_loss: {val_loss / val_counter}")
+    print(f"val_precision {val_precision / val_counter}")
+    print(f"val_recall {val_recall / val_counter}")
+    print(f"val_f1 {val_f1 / val_counter}")

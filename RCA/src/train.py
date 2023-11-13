@@ -17,14 +17,11 @@ def train_MTGNN():
 
 def train_FCN_AD():
     # define constants
-    split_type = 'random'
+    split_type = 'time'
     train_size = 0.7
     validation_size = 0.2
     test_size = 0.1
-    # set training to anomaly detection or root cause analysis
-    train_AD = True
     path_to_data = '../data/data_FCN.csv'
-
 
 
 
@@ -34,17 +31,8 @@ def train_FCN_AD():
     # load csv
     df = pd.read_csv(path_to_data)
 
-    if train_AD:
-        # set output size for last layer
-        output_size = 2
-    else:
-        # transform for root cause analysis
-        # drop rows with label 0
-        df = df[df['label'] != 0]
-        # decrease value of non-zero labesl by 1
-        df['label'] = df['label'].apply(lambda x: x-1)
-        # set output size for last layer
-        output_size = 2
+    # set output size for last layer
+    output_size = 2
 
     # Calculate validation size
     val_size = validation_size / (train_size + validation_size)
@@ -55,12 +43,17 @@ def train_FCN_AD():
         train, val = train_test_split(train, test_size=val_size, random_state=42)
     elif split_type == 'time':
         # sort by timestamp before splitting
-        df = df.sort_values(by=['timestamp'])
+        df = df.sort_values(by=['timestamp:vector'])
+        # Drop timestamp column
+        df = df.drop(["timestamp:vector"],axis=1)
         train, test = train_test_split(df, test_size=test_size, shuffle=False)
         train, val = train_test_split(train, test_size=val_size, shuffle=False)
+        # Drop timestamp column
 
     # save test set
     test.to_csv('../data/test.csv', index=False)
+
+
 
     # Prepare train and validation sets
     train_kpis = train.drop(["label"],axis=1)
@@ -73,7 +66,6 @@ def train_FCN_AD():
     val_kpis = min_max_scaler.transform(val_kpis)
     val_kpis = val_kpis.astype('float32')
     val_labels = tf.one_hot(val["label"],2)
-    
     
     # Create tf.data.Dataset object from dataset
     train_ds = tf.data.Dataset.from_tensor_slices((train_kpis, train_labels))
