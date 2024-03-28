@@ -1,0 +1,2 @@
+Approach, f1score_0, f1score_1
+FCN, 0.92, 0.12

@@ -17,20 +17,20 @@ def train_MTGNN():
 
 def train_FCN_AD():
     # define constants
-    split_type = 'time'
-    train_size = 0.7
-    validation_size = 0.2
-    test_size = 0.1
-    path_to_data = '../data/data_FCN.csv'
-
-
+    split_type = 'random'
+    train_size = 0.6
+    validation_size = 0.39
+    test_size = 0.01
+    path_to_data = '../data/omni1/20240212_215449_base_AD.csv'
+    BATCH_SIZE = 128
+    lr = 0.0003
 
     # get current time
     current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # load csv
     df = pd.read_csv(path_to_data)
-
+    
     # set output size for last layer
     output_size = 2
 
@@ -39,6 +39,8 @@ def train_FCN_AD():
 
     # Split into train, validation and test using scikit-learn
     if split_type == 'random': 
+        # Drop timestamp column
+        df = df.drop(["timestamp:vector"],axis=1)
         train, test = train_test_split(df, test_size=test_size, random_state=42)
         train, val = train_test_split(train, test_size=val_size, random_state=42)
     elif split_type == 'time':
@@ -50,9 +52,21 @@ def train_FCN_AD():
         train, val = train_test_split(train, test_size=val_size, shuffle=False)
         # Drop timestamp column
 
-    # save test set
-    test.to_csv('../data/test.csv', index=False)
+    # Print label counts
+    print('Train label counts:')
+    print(train['label'].value_counts())
+    print('Validation label counts:')
+    print(val['label'].value_counts())
+    
 
+    # save test set
+    #test.to_csv('../data/test.csv', index=False)
+
+    # Calculate minority class ratio
+    minority_class_ratio = len(train[train["label"]==1])/len(train[train["label"]==0])
+    #minority_class_ratio = 1 - minority_class_ratio
+    #print(minority_class_ratio)
+    #print(asd)
 
 
     # Prepare train and validation sets
@@ -69,17 +83,36 @@ def train_FCN_AD():
     
     # Create tf.data.Dataset object from dataset
     train_ds = tf.data.Dataset.from_tensor_slices((train_kpis, train_labels))
-    train_ds = train_ds.shuffle(10000).batch(32,drop_remainder=True)
+    train_ds = train_ds.shuffle(10000).batch(BATCH_SIZE,drop_remainder=True)
     val_ds = tf.data.Dataset.from_tensor_slices((val_kpis, val_labels))
-    val_ds = val_ds.shuffle(10000).batch(32,drop_remainder=True) 
+    val_ds = val_ds.shuffle(10000).batch(BATCH_SIZE,drop_remainder=True) 
+
+    # Iterate over train dataset
+    # for kpis, labels in train_ds:
+    #     print(kpis)
+    #     print(kpis.shape)
+    #     print(labels)
+    #     print(labels.shape)
+    #     break
+
+    # # Iterate over validation dataset
+    # for kpis, labels in val_ds:
+    #     print(kpis)
+    #     print(kpis.shape)
+    #     print(labels)
+    #     print(labels.shape)
+    #     break
+
+
+    # print(asd)
 
     # Create an instance of the model
     model = FullyConnectedNN(output_size=output_size)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
     # Compile the model with binary_crossentropy loss
     model.compile(
         optimizer=optimizer, 
-        loss=WeightedCategoricalCrossentropy(class1_ratio=0.24), 
+        loss=WeightedCategoricalCrossentropy(class1_ratio=minority_class_ratio), 
         metrics=[
             tf.keras.metrics.Precision(name='precision_0',class_id=0),
             tf.keras.metrics.Recall(name='recall_0',class_id=0),

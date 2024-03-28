@@ -5,16 +5,20 @@ class FullyConnectedNN(tf.keras.Model):
 
         super(FullyConnectedNN, self).__init__()
         self.flatten = tf.keras.layers.Flatten()
-        self.dense1 = tf.keras.layers.Dense(8, activation='relu')
-        self.dense2 = tf.keras.layers.Dense(4, activation='relu')
-        self.dense3 = tf.keras.layers.Dense(output_size)
+        #self.dense1 = tf.keras.layers.Dense(64, activation='relu')
+        #self.dense2 = tf.keras.layers.Dense(32, activation='relu')
+        self.dense3 = tf.keras.layers.Dense(16, activation='relu')
+        self.dense4 = tf.keras.layers.Dense(8, activation='relu')
+        self.dense5 = tf.keras.layers.Dense(output_size)
         self.softmax = tf.keras.layers.Softmax()
 
     def call(self, inputs):
         x = self.flatten(inputs)
-        x = self.dense1(x)
-        x = self.dense2(x)
+        #x = self.dense1(x)
+        #x = self.dense2(x)
         x = self.dense3(x)
+        x = self.dense4(x)
+        x = self.dense5(x)
         x = self.softmax(x)
         return x
 

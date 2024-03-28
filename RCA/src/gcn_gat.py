@@ -18,8 +18,6 @@ from torch_geometric.utils import to_undirected
 from metrics_pytorch import evaluate_metrics
 
 
-
-
 import torch.nn.functional as F
 from torch.nn import Linear, Dropout
 from torch_geometric.nn import GCNConv, GATv2Conv
@@ -208,11 +206,19 @@ def test(model, data):
     return acc
 
 import pandas as pd
-NUM_NODES = 4
-
+NUM_NODES = 5
+batch_size = 512  # Define your desired batch size
+NUM_CLASSES = 2
+epochs = 500
+minority_ratio = 0.24
+lr=0.0001
+train_size = 0.5
+val_size = 0.4
+model_name = 'GCN'
+#num_features = 6
 # Open a comma separated values file
-df = pd.read_csv('../data/calibrated_multi.txt', sep=',') 
-
+df = pd.read_csv('../data/prepared/calibrated_multi_final.txt', sep=',') 
+print(df.info())
 # Show the first 5 rows
 
 # Set last NUM_NODES columns as labels and the rest as features
@@ -220,8 +226,8 @@ labels = df.iloc[:, -NUM_NODES:].values
 features = df.iloc[:, :-NUM_NODES].values
 
 # Split into train, validation and test
-train_size = int(0.7 * len(df))
-val_size = int(0.2 * len(df))
+train_size = int(train_size * len(df))
+val_size = int(val_size * len(df))
 test_size = len(df) - train_size - val_size
 
 train_labels = labels[:train_size]
@@ -240,6 +246,7 @@ test_features = scaler.transform(test_features)
 
 # Calculate number of features per node
 num_features = train_features.shape[1]/NUM_NODES
+print(f"num features : {num_features}")
 
 # Reshape features into a 3D matrix
 train_features = train_features.reshape(train_size, NUM_NODES, int(num_features))
@@ -267,10 +274,9 @@ class CustomDataset(Dataset):
         return len(self.graphs)
 
     def get(self, idx):
-        
         return self.graphs[idx]
 
-batch_size = 32  # Define your desired batch size
+
 
 # Create empty lists
 train_data_list = []
@@ -283,6 +289,8 @@ for i in range(train_size):
     )
     # Append to list
     train_data_list.append(data)
+
+
 from torch_geometric.data import Batch
 batch = Batch.from_data_list(train_data_list)
 train_dataset = CustomDataset(batch)
@@ -304,22 +312,18 @@ val_dataset = CustomDataset(val_data_list)
 val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,drop_last=True)
 
 
-NUM_CLASSES = 2
-epochs = 500
-
-model_name = 'GAT'
 if model_name == 'GCN':
-    model = GCN(7, 16, NUM_CLASSES, NUM_NODES, batch_size)
+    model = GCN(int(num_features), 16, NUM_CLASSES, NUM_NODES, batch_size)
 elif model_name == 'GAT':
-    model = GAT(7, 16, NUM_CLASSES, NUM_NODES, batch_size)
+    model = GAT(int(num_features), 16, NUM_CLASSES, NUM_NODES, batch_size)
 
 optimizer = torch.optim.Adam(
                              model.parameters(),
-                                      lr=0.0001)
+                                      lr=lr)
 
 criterion = torch.nn.CrossEntropyLoss(
     weight=torch.tensor(
-        [0.24,1-0.24],
+        [minority_ratio,1-minority_ratio],
         requires_grad=False),
         reduction='mean',
         )
