@@ -6,3 +6,5 @@ anomaly_detection/models/
 anomaly_detection/logs/
 RCA/logs/
 RCA/data/
+RCA/logs*/
+RCA/exp/
