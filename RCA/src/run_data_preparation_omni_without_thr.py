@@ -447,8 +447,8 @@ def aggregate_across_basestations(
         # Calculate distance percentiles
         bsDF['dist_5'] = bsDF_group['servingDistance:vector'].quantile(low_percentile)
         bsDF['dist_95'] = bsDF_group['servingDistance:vector'].quantile(high_percentile)
-        bsDF['thro_5'] = bsDF_group['phyThroughput:vector'].quantile(low_percentile)
-        bsDF['thro_95'] = bsDF_group['phyThroughput:vector'].quantile(high_percentile)
+        #bsDF['thro_5'] = bsDF_group['phyThroughput:vector'].quantile(low_percentile)
+        #bsDF['thro_95'] = bsDF_group['phyThroughput:vector'].quantile(high_percentile)
 
         # Add a column called 'count' that contains the number of rows in each group
         bsDF['count'] = bsDF_group.size()
@@ -537,7 +537,7 @@ def write_MTGNN_data(df, save_path): #, keep_rows):
         data[f"{cell_id}_rsrp"] = list(cell_df['servingRSRP:vector'].values) #[:keep_rows]
         data[f"{cell_id}_rsrq"] = list(cell_df['servingRSRQ:vector'].values) #[:keep_rows]
         data[f"{cell_id}_sinr"] = list(cell_df['servingSINR:vector'].values) #[:keep_rows]
-        data[f"{cell_id}_thro"] = list(cell_df['phyThroughput:vector'].values) #[:keep_rows]
+        #data[f"{cell_id}_thro"] = list(cell_df['phyThroughput:vector'].values) #[:keep_rows]
         data[f"{cell_id}_rsrp_5"] = list(cell_df['rsrp_5'].values)
         data[f"{cell_id}_rsrp_95"] = list(cell_df['rsrp_95'].values)
         data[f"{cell_id}_sinr_5"] = list(cell_df['sinr_5'].values)
@@ -546,8 +546,8 @@ def write_MTGNN_data(df, save_path): #, keep_rows):
         data[f"{cell_id}_rsrq_95"] = list(cell_df['rsrq_95'].values)
         data[f"{cell_id}_dist_5"] = list(cell_df['dist_5'].values)
         data[f"{cell_id}_dist_95"] = list(cell_df['dist_95'].values)
-        data[f"{cell_id}_thro_5"] = list(cell_df['thro_5'].values)
-        data[f"{cell_id}_thro_95"] = list(cell_df['thro_95'].values)
+        #data[f"{cell_id}_thro_5"] = list(cell_df['thro_5'].values)
+        #data[f"{cell_id}_thro_95"] = list(cell_df['thro_95'].values)
         #data[f"{cell_id}_thro"] = list(cell_df['rlcThroughputDl:vector'].values)[:keep_rows]
 
     # iterate over unique cell ids and retrieve dataframe for each cell id
@@ -681,11 +681,11 @@ def prepare_data():
 
     # Parse arguments using argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--save_path', type=str, default="../data/chicago-peak/", 
+    parser.add_argument('--save_path', type=str, default="../data/7gnb-90ue/", 
                         help='The path to save the prepared data.')
-    parser.add_argument('--data_path', type=str, default="../data/chicago-peak/chicago-peak-scenario.csv",
+    parser.add_argument('--data_path', type=str, default="../data/7gnb-90ue/7gnb-90ue.csv",
                         help='The path to the input data.')
-    parser.add_argument('--fault_description_txt', type=str, default="../data/chicago-peak/fault-description.txt",
+    parser.add_argument('--fault_description_txt', type=str, default="../data/7gnb-90ue/fault-description-time-bin.txt",
                         help='The path to the fault-description.txt file.')
     args = parser.parse_args()
 
@@ -796,7 +796,7 @@ def prepare_data():
                 'servingRSRP:vector',
                 'servingRSRQ:vector',
                 'servingSINR:vector',
-                'phyThroughput:vector',
+                #'phyThroughput:vector',
                 'rsrp_5',
                 'rsrp_95',
                 'sinr_5',
@@ -805,8 +805,8 @@ def prepare_data():
                 'rsrq_95',
                 'dist_5',
                 'dist_95',
-                'thro_5',
-                'thro_95',
+                #'thro_5',
+                #'thro_95',
                 'count',
                 'label'
             ], 

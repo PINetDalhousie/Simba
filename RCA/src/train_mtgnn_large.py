@@ -32,7 +32,7 @@ shutil.copy('train_mtgnn_large.py', f'{log_path}/train_mtgnn_large.py')
 import argparse
 parser = argparse.ArgumentParser(description='Train MTGNN on large topology dataset')
 parser.add_argument('--model', type=str, default='TransformerMTGNN', help='Model to use: MTGNN or TransformerMTGNN or GCNMTGNN')
-parser.add_argument('--epochs', type=int, default=1000, help='Number of epochs to train the model')
+parser.add_argument('--epochs', type=int, default=140, help='Number of epochs to train the model')
 args = parser.parse_args()
 # Save the arguments in a txt file in log_path
 with open(f'{log_path}/args.txt', 'w') as f:
@@ -53,7 +53,7 @@ LR = 0.0003
 epochs = args.epochs
 
 # Load the mtgnn .txt file as a pandas dataframe
-graph_data = pd.read_csv('../data/7gnb-30-45ue/20240328_125051_MTGNN.txt', sep=',', header=None)
+graph_data = pd.read_csv('../data/7gnb-90ue/20240401_144923_MTGNN.txt', sep=',', header=None)
 
 # Print number of columns
 # print(graph_data.shape)
@@ -91,8 +91,8 @@ for column in train_target.columns:
     if i in class_counts:
       ClASS_COUNTS[i] += class_counts[i]
 
-#print(ClASS_COUNTS)
-#print(asd)
+# print(ClASS_COUNTS)
+# print(asd)
 
 class_weights = [x / sum(ClASS_COUNTS) for x in ClASS_COUNTS]
 class_weights = [1/x for x in class_weights]
@@ -248,7 +248,7 @@ elif MODEL == "GCNMTGNN":
     dilation_exponential=1,
     conv_channels=32,
     residual_channels=32,
-    skip_channels=30,
+    skip_channels=32,
     end_channels=32,
     seq_length=seq_len,
     layers=1,

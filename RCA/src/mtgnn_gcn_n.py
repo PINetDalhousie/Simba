@@ -1,14 +1,19 @@
+"""
+Copied from https://github.com/benedekrozemberczki/pytorch_geometric_temporal/blob/master/torch_geometric_temporal/nn/attention/mtgnn.py
+Updated the model to include GCN layer.
+"""
+
 from __future__ import division
 
 import numbers
 from typing import Optional
-import math
+
 import torch
 import torch.nn as nn
 from torch.nn import init
 import torch.nn.functional as F
-from torch.nn import TransformerEncoder, TransformerEncoderLayer
-
+from torch_geometric.nn import GCNConv, GATv2Conv
+from torch_geometric.data import Data, Batch
 
 class Linear(nn.Module):
     r"""An implementation of the linear layer, conducting 2D convolution.
@@ -286,28 +291,6 @@ class LayerNormalization(nn.Module):
                 X, tuple(X.shape[1:]), self._weight, self._bias, self._eps
             )
 
-class PositionalEncoding(nn.Module):
-
-    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 60):
-        super().__init__()
-        self.dropout = nn.Dropout(p=dropout)
-
-        position = torch.arange(max_len).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
-        pe = torch.zeros(max_len, 1, d_model)
-        pe[:, 0, 0::2] = torch.sin(position * div_term)
-        pe[:, 0, 1::2] = torch.cos(position * div_term)
-        self.register_buffer('pe', pe)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Arguments:
-            x: Tensor, shape ``[seq_len, batch_size, embedding_dim]``
-        """
-        x = x + self.pe[:x.size(0)]
-        return self.dropout(x)
-
-
 
 class MTGNNLayer(nn.Module):
     r"""An implementation of the MTGNN layer.
@@ -354,11 +337,13 @@ class MTGNNLayer(nn.Module):
         gcn_depth: int,
         num_nodes: int,
         propalpha: float,
+        batch_size: int,
     ):
         super(MTGNNLayer, self).__init__()
         self._dropout = dropout
         self._gcn_true = gcn_true
-
+        self.num_nodes = num_nodes
+        self.batch_size = batch_size
         if dilation_exponential > 1:
             rf_size_j = int(
                 rf_size_i
@@ -369,55 +354,51 @@ class MTGNNLayer(nn.Module):
         else:
             rf_size_j = rf_size_i + j * (kernel_size - 1)
 
-        self.feature_dim = 32
-        self.num_nodes = num_nodes
+        # self._filter_conv = DilatedInception(
+        #     residual_channels,
+        #     conv_channels,
+        #     kernel_set=kernel_set,
+        #     dilation_factor=new_dilation,
+        # )
 
-        self.pos_encoder = PositionalEncoding(d_model=self.feature_dim, dropout=0.0)
-        encoder_layers = TransformerEncoderLayer(d_model=32, nhead=4, dim_feedforward=64, dropout=0.0)
-        self.transformer_encoder = TransformerEncoder(encoder_layers, num_layers=6)
+        # self._gate_conv = DilatedInception(
+        #     residual_channels,
+        #     conv_channels,
+        #     kernel_set=kernel_set,
+        #     dilation_factor=new_dilation,
+        # )
 
+        # self._residual_conv = nn.Conv2d(
+        #     in_channels=conv_channels,
+        #     out_channels=residual_channels,
+        #     kernel_size=(1, 1),
+        # )
 
-        self._filter_conv = DilatedInception(
-            residual_channels,
-            conv_channels,
-            kernel_set=kernel_set,
-            dilation_factor=new_dilation,
-        )
+        # if seq_length > receptive_field:
+        #     self._skip_conv = nn.Conv2d(
+        #         in_channels=conv_channels,
+        #         out_channels=skip_channels,
+        #         kernel_size=(1, seq_length - rf_size_j + 1),
+        #     )
+        # else:
+        #     self._skip_conv = nn.Conv2d(
+        #         in_channels=conv_channels,
+        #         out_channels=skip_channels,
+        #         kernel_size=(1, receptive_field - rf_size_j + 1),
+        #     )
 
-        self._gate_conv = DilatedInception(
-            residual_channels,
-            conv_channels,
-            kernel_set=kernel_set,
-            dilation_factor=new_dilation,
-        )
-
-        self._residual_conv = nn.Conv2d(
-            in_channels=conv_channels,
-            out_channels=residual_channels,
-            kernel_size=(1, 1),
-        )
-
-        if seq_length > receptive_field:
-            self._skip_conv = nn.Conv2d(
-                in_channels=conv_channels,
-                out_channels=skip_channels,
-                kernel_size=(1, (seq_length - rf_size_j + 1)+2),
-            )
-        else:
-            self._skip_conv = nn.Conv2d(
-                in_channels=conv_channels,
-                out_channels=skip_channels,
-                kernel_size=(1, (receptive_field - rf_size_j + 1)+2),
-            )
+        
 
         if gcn_true:
-            self._mixprop_conv1 = MixProp(
-                conv_channels, residual_channels, gcn_depth, dropout, propalpha
-            )
+            # self._mixprop_conv1 = MixProp(
+            #     conv_channels, residual_channels, gcn_depth, dropout, propalpha
+            # )
 
-            self._mixprop_conv2 = MixProp(
-                conv_channels, residual_channels, gcn_depth, dropout, propalpha
-            )
+            # self._mixprop_conv2 = MixProp(
+            #     conv_channels, residual_channels, gcn_depth, dropout, propalpha
+            # )
+            
+            self.gcn1 = GCNConv(32, 32, node_dim=1)
 
         if seq_length > receptive_field:
             self._normalization = LayerNormalization(
@@ -431,6 +412,18 @@ class MTGNNLayer(nn.Module):
                 elementwise_affine=layer_norm_affline,
             )
         self._reset_parameters()
+
+        self.in_conv = nn.Conv2d(
+            in_channels=3,
+            out_channels=1,
+            kernel_size=1,
+        )
+
+        self.out_conv = nn.Conv2d(
+            in_channels=3,
+            out_channels=1,
+            kernel_size=1,
+        )
 
     def _reset_parameters(self):
         for p in self.parameters():
@@ -465,69 +458,102 @@ class MTGNNLayer(nn.Module):
             * **X_skip** (PyTorch FloatTensor) - Output feature tensor for skip connection,
                 with shape (batch_size, in_dim, num_nodes, seq_len).
         """
-        print(f"input shape : {X.shape}")
-        X_residual = X
-
-        # Reshape tensor to (X.shape[0], in_dim*num_nodes, seq_len)
-        # X = X.view(X.shape[0], X.shape[1] * X.shape[2], X.shape[3])
-        # # Permute tensor to (X.shape[0], seq_len, in_dim*num_nodes)
-        # X = X.permute(2, 0, 1)
-
-        # Permute to get (seq_len,batch_size,num_nodes,in_dim)
-        X = X.permute(3, 0, 2, 1)
-        #print(X.shape)
-        # Reshape to (seq_len, num_nodes*batch_size, num_features)
-        #X = torch.reshape(X, (30, self.num_nodes*self.current_batch_size, 32))
-        X = torch.reshape(X, (X.shape[0], -1, X.shape[3]))
-
-        #print(f"before shape {X.shape}")
-        # Apply positional encoding
-        X = self.pos_encoder(X)
-        # Apply transformer encoder
-        X = self.transformer_encoder(X)
-        #print(f"after shape {X.shape}")
         
-        # Reshape to (seq_len, num_nodes, batch_size, num_features)
-        X = torch.reshape(X, (X.shape[0],-1, self.num_nodes, X.shape[2]))
-        #print(X.shape)
-        # Permute to (batch_size, num_features, num_nodes, seq_len)
-        X = X.permute(1, 3, 2, 0)
-        # print(X.shape)
-        # print(asds)
-
-        # X_filter = self._filter_conv(X)
-        # print(f"filter output shape : {X_filter.shape}")
+        #X_filter = self._filter_conv(X)
+        #X_residual = X
         # X_filter = torch.tanh(X_filter)
         # X_gate = self._gate_conv(X)
-        # print(f"gate output shape : {X_filter.shape}")
         # X_gate = torch.sigmoid(X_gate)
         # X = X_filter * X_gate
-        # print(f"X shape {X_skip.shape}")
-        # print(f"output shape : {self._skip_conv(X).shape}")
-        #print(asd)
-
-        X = F.dropout(X, self._dropout, training=training)
-        X_skip = self._skip_conv(X) + X_skip
+        # X = F.dropout(X, self._dropout, training=training)
+        # X_skip = self._skip_conv(X) + X_skip
         if self._gcn_true:
-            X = self._mixprop_conv1(X, A_tilde) + self._mixprop_conv2(
-                X, A_tilde.transpose(1, 0)
-            )
+            # Permute X to be (batch_size, in_dim, num_nodes, seq_len)
+            X = X.permute(0, 3, 1, 2)
+            X = self.in_conv(X)
+            # Permute X to be (batch_size, seq_len, num_nodes, in_dim)
+            X = X.permute(0, 2, 3, 1)
+            # Squeeze the last dimension
+            X = X.squeeze(3)
+
+            X = X.permute(0,2,1)
+            #X = X[:,:,:,0]
+            
+            from torch_geometric.utils.sparse import dense_to_sparse
+            A_tilde, A_tilde_weights = dense_to_sparse(A_tilde)
+            X = self.gcn1(X, A_tilde, A_tilde_weights)
+            
+            
+            #print(A_tilde.shape)
+
+            # Permute back to (batch_size, in_dim, num_nodes, seq_len)
+            X = X.permute(0, 2, 1)
+            #print(X.shape)
+            
+            # X = self._mixprop_conv1(X, A_tilde) + self._mixprop_conv2(
+            #     X, A_tilde.transpose(1, 0)
+            # )
+
+
+            # repeat_range = int((self.batch_size-1) * self.num_nodes)
+            # # Create the repeating increasing graph
+            # repeating_tensor = torch.arange(0,repeat_range+1,self.num_nodes) 
+            
+            # # Add a dimension to the tensor
+            # #repeating_tensor = repeating_tensor.unsqueeze(1)
+            # repeating_tensor = repeating_tensor.repeat_interleave(edge_index.shape[1])
+            # repeating_tensor = repeating_tensor.reshape(1,-1)
+            # repeating_tensor = repeating_tensor.repeat(2,1)    
+            # edge_index = edge_index.repeat(1, self.batch_size)
+
+            # # Add the repeating tensor to the edge_index
+            # edge_index = edge_index + repeating_tensor  
+
+            # # Permute dimension to be (batch_size, num_nodes, seq_len, in_dim)
+            # X = X.permute(0, 2, 3, 1)
+            # # Reshape to be (batch_size * seq_len * num_nodes, in_dim)
+            # X = X.reshape(-1, X.size(3))
+            # print(X.size())
+            
+            # X = self.gcn1(X, edge_index)
         else:
             X = self._residual_conv(X)
-
-        X = X + X_residual[:, :, :, -X.size(3) :]
-        X = self._normalization(X, idx)
-
-        X = self._filter_conv(X)
-
-        # print(f"X shape {X.shape}")
-        # print(f"X_skip shape {X_skip.shape}")
+        # print(X.size())
         # print(asd)
+
+        #X = X + X_residual[:, :, :, -X.size(3) :]
+        X = self._normalization(X, idx)
+        
+        # Perform convolution over the last dimension of X 
+        
+        #print(X.size())
+        # # Permute dimension to be (batch_size, num_nodes, seq_len, in_dim)
+        # X = X.permute(0, 2, 3, 1)
+        # seq_len = X.size(1)
+        # num_nodes = X.size(2)
+        # # Reshape to be (batch_size * seq_len * num_nodes, in_dim)
+        # X = X.reshape(-1, X.size(3))
+        # X = self.out_conv(X)
+        # X = X.reshape(-1, seq_len, num_nodes, 1)
+        # # print(X.size())
+        # print(X.size())
+        #print(X_skip.size())
+        #print(asd)
+
+        # Permute X to be (batch_size, in_dim, num_nodes, seq_len)
+        # X = X.permute(0, 3, 1, 2)
+        # X = self.out_conv(X)
+        # # Permute X to be (batch_size, seq_len, num_nodes, in_dim)
+        # X = X.permute(0, 2, 3, 1)
+        # Add additional dimension at the end
+        X = X.unsqueeze(3)
+        #print(X.size())
+        #print(asd)
 
         return X, X_skip
 
 
-class TransformerMTGNN(nn.Module):
+class GCNMTGNN(nn.Module):
     r"""An implementation of the Multivariate Time Series Forecasting Graph Neural Networks.
     For details see this paper: `"Connecting the Dots: Multivariate Time Series Forecasting with Graph Neural Networks."
     <https://arxiv.org/pdf/2005.11650.pdf>`_
@@ -580,10 +606,11 @@ class TransformerMTGNN(nn.Module):
         propalpha: float,
         tanhalpha: float,
         layer_norm_affline: bool,
+        batch_size: int,
         xd: Optional[int] = None,
     ):
-        super(TransformerMTGNN, self).__init__()
-
+        super(GCNMTGNN, self).__init__()
+        self.batch_size = batch_size
         self._gcn_true = gcn_true
         self._build_adj_true = build_adj
         self._num_nodes = num_nodes
@@ -621,6 +648,7 @@ class TransformerMTGNN(nn.Module):
                     gcn_depth=gcn_depth,
                     num_nodes=num_nodes,
                     propalpha=propalpha,
+                    batch_size=batch_size,
                 )
             )
 
@@ -652,7 +680,7 @@ class TransformerMTGNN(nn.Module):
             self._skip_conv_E = nn.Conv2d(
                 in_channels=residual_channels,
                 out_channels=skip_channels,
-                kernel_size=(1, (self._seq_length - self._receptive_field + 1)),
+                kernel_size=(1, self._seq_length - self._receptive_field + 1),
                 bias=True,
             )
 
@@ -756,5 +784,4 @@ class TransformerMTGNN(nn.Module):
         X = F.relu(X_skip)
         X = F.relu(self._end_conv_1(X))
         X = self._end_conv_2(X)
-
         return X
