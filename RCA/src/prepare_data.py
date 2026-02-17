@@ -1,310 +1,703 @@
 import pandas as pd
-#import tensorflow as tf
-import sys
 import matplotlib.pyplot as plt
-import argparse
 import numpy as np
-import os
 import pandas as pd
+import os
+import argparse
+import datetime
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
 
-class PrepareData:
+# Get current time
+CURRENT_TIME = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    def __init__(self) -> None:
-        # dict to store dataframes
-        self.faults = {}
-        pass
+def get_faults_df_omni(fault_description_txt:str) -> pd.DataFrame:
+    """
+    This function reads a fault description text file
+    and returns a DataFrame with the fault information.
+    """
+    # Read the fault description text file into a DataFrame
+    # Use the first line as header
+    df = pd.read_csv(fault_description_txt, sep=',')    
 
-    def read_data(self, path):
-        '''
-        Read data from csv files
-        '''
-        # get list of csv files in path    
-        faults = [f for f in os.listdir(path) if f.endswith('.csv')]
+    # Set dtype for individual columns
+    df['fault'] = df['fault'].astype('category')
+    df['start'] = df['start'].astype(int)
+    df['end'] = df['end'].astype(int)
+    df['bs'] = df['bs'].astype(int)
 
-        # iterate over csv files
-        for fault in faults:
-            # split fault name
-            fault_name = fault.split('-')[0]
-            # read csv
-            self.faults[fault_name] = pd.read_csv(path+fault)
+    return df
 
-    def cast_cell_to_int(self):
-        # cast cell id to int
-        for key, value in self.faults.items():
-            value['servingCell:vector'] = np.floor(value['servingCell:vector']).astype(int)
+def get_faults_df(fault_description_txt:str) -> pd.DataFrame:
+    """
+    This function reads a fault description text file, processes each line, and returns a DataFrame with the fault information.
+    
+    Parameters:
+    fault_description_txt (str): The path to the fault description text file.
+
+    Returns:
+    df (DataFrame): A DataFrame containing the fault information. Each row corresponds to a fault, with columns for 'Fault Type', 'Start Time', 'End Time', and 'Base Station'.
+    """
+    # Initialize an empty list to store the fault data
+    data = []
+
+    # Open the input file
+    with open(fault_description_txt, 'r') as infile:        
+        # Process each line in the input file
+        for line in infile:
+            # Split the line into components
+            components = line.strip().split()
             
+            # Extract the fault type, start time, end time, and base station from the components
+            # The start time and end time have an 's' at the end which needs to be removed
+            # The base station is an integer value
+            fault_type = components[0]
+            start_time = components[1].split('=')[1][:-2]
+            end_time = components[2].split('=')[1][:-2]
+            base_station = components[4].split('=')[1]
+            
+            # Create a dictionary with the fault information and add it to the data list
+            data.append({'Fault Type': fault_type, 'Start Time': start_time, 'End Time': end_time, 'Base Station': base_station})
+
+    # Convert the data list to a DataFrame
+    df = pd.DataFrame(data)
+
+    # Set dtype for individual columns
+    df['Fault Type'] = df['Fault Type'].astype('category')
+    df['Start Time'] = df['Start Time'].astype(int)
+    df['End Time'] = df['End Time'].astype(int)
+    df['Base Station'] = df['Base Station'].astype(int)
+
+    return df
+
+
+def gnb_to_id_mapping(gnb_txt):
+    """
+    This function reads a text file and creates a mapping from 'gnb' values to corresponding 'ID' values.
+    The 'gnb' values are obtained by removing the last digit from the 'gnb' values in the file.
+    The 'ID' values are collected into a list for each unique 'gnb' value.
+
+    Args:
+        gnb_txt (str): The path to the input text file.
+
+    Returns:
+        dict: A dictionary where the keys are 'gnb' values and the values are lists of 'ID' values.
+    """
+    # Initialize an empty dictionary for the mapping
+    mapping = {}
+
+    # Open the input file for reading
+    with open(gnb_txt, 'r') as infile:
+        # Skip the header line of the file
+        next(infile)
+
+        # Process each line in the input file
+        for line in infile:
+            # Split the line into components and strip leading/trailing whitespace
+            components = line.strip().split()
+
+            # Extract the 'gnb' value (without the last digit) and the 'ID' value
+            gnb = int(components[1][:-1])
+            id = int(components[3])
+
+            # Add the 'ID' value to the list for this 'gnb' value in the mapping
+            # If the 'gnb' value is not already a key in the mapping, add it
+            mapping.setdefault(gnb, []).append(id)
+
+    return mapping
+
+def get_fault_periods_omni(
+        fault_description_df:pd.DataFrame,
+        map_fault_to_label:dict,
+        ):
+    """
+    This function takes a DataFrame containing fault descriptions and a mapping dictionary.
+    It then maps the fault types to their corresponding labels.
+    """
+    # Map 'fault' to its corresponding label using the provided dictionary
+    fault_description_df['fault'] = fault_description_df['fault'].map(map_fault_to_label)
+
+    # Extract the values of 'Fault Type', 'Start Time', 'End Time', and 'Base Station' into lists
+    fault_label = fault_description_df['fault'].values.tolist()
+    fault_start = fault_description_df['start'].values.tolist()
+    fault_end = fault_description_df['end'].values.tolist()
+    servingCells = fault_description_df['bs'].values.tolist()
+
+    # Return the four lists
+    return fault_label, fault_start, fault_end, servingCells
+
+def get_fault_periods(
+        fault_description_df:pd.DataFrame,
+        map_fault_to_label:dict,
+        map_bs_to_int:dict,
+        ):
+    """
+    This function takes a DataFrame containing fault descriptions and two mapping dictionaries. 
+    It then maps the fault types and base stations to their corresponding labels and integers respectively.
+    
+    Parameters:
+    fault_description_df (pd.DataFrame): A DataFrame containing fault descriptions. 
+    It is expected to have the following columns:
+    - 'Fault Type': The type of fault.
+    - 'Base Station': The base station where the fault occurred.
+    - 'Start Time': The start time of the fault.
+    - 'End Time': The end time of the fault.
+    
+    map_fault_to_label (dict): A dictionary mapping fault types to labels.
+    
+    map_bs_to_int (dict): A dictionary mapping base stations to integers.
+    
+    Returns:
+    tuple: A tuple containing four lists:
+    - fault_label: The labels corresponding to the fault types.
+    - fault_start: The start times of the faults.
+    - fault_end: The end times of the faults.
+    - servingCells: The integers corresponding to the base stations.
+    """
+    
+    # Map 'Fault Type' to its corresponding label using the provided dictionary
+    fault_description_df['Fault Type'] = fault_description_df['Fault Type'].map(map_fault_to_label)
+    
+    # Map 'Base Station' to its corresponding integer using the provided dictionary
+    fault_description_df['Base Station'] = fault_description_df['Base Station'].map(map_bs_to_int)
+
+    # Extract the values of 'Fault Type', 'Start Time', 'End Time', and 'Base Station' into lists
+    fault_label = fault_description_df['Fault Type'].values
+    fault_start = fault_description_df['Start Time'].values
+    fault_end = fault_description_df['End Time'].values
+    servingCells = fault_description_df['Base Station'].values
+
+    # Return the four lists
+    return fault_label, fault_start, fault_end, servingCells
+
+
+
+def set_time_index(df):
+    """
+    This function takes a DataFrame and performs two main operations:
+    1. Drops the first column of the DataFrame.
+    2. Converts the 'timestamp:vector' column to a timedelta, sets it as the index of the DataFrame, 
+       and keeps the column in the DataFrame.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+
+    Returns:
+        df (pd.DataFrame): The modified DataFrame with the 'timestamp:vector' column set as the index.
+    """
+    # Use timestamp as index
+    df['timestamp:vector'] = pd.to_timedelta(df['timestamp:vector'], unit='S')
+    df.set_index('timestamp:vector', inplace=True, drop=False)
+    return df
+
+
+def aggregate_by_timedelta(
+        df:pd.DataFrame,
+        timedelta,
+        servingCell_column:str='servingCell:vector',
+        UEid_column:str='UEid',
+        ):
+    """
+    This function aggregates data in a DataFrame based on a given timedelta. It performs the following steps:
+    1. Determines the minimum and maximum timestamps in the DataFrame.
+    2. Creates a range of timestamps from the minimum to the maximum with a frequency of the given timedelta.
+    3. Iterates over each unique 'servingCell:vector' in the DataFrame.
+    4. For each 'servingCell:vector', it iterates over each unique 'UEid:vector'.
+    5. It groups the data by the timestamp bins and calculates the mean for each group.
+    6. It appends the resulting DataFrame to a list.
+    7. Finally, it concatenates all the DataFrames in the list into a single DataFrame.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        timedelta (str): The timedelta for grouping the data.
+
+    Returns:
+        df (pd.DataFrame): The aggregated DataFrame.
+    """
+    
+    # Bins go from 0 -> end of simulation data by seconds
+    #min_timestamp = df['timestamp:vector'].min()
+    # Set min timestamp to 0
+    min_timestamp = pd.Timedelta('0 days 00:00:00')
+    max_timestamp = df.index.max()
+    time_range = pd.timedelta_range(start=min_timestamp, end=max_timestamp, freq=timedelta)
+    concat_DF = []
+    for cellID in df[servingCell_column].unique():
+        bsDF = df[df[servingCell_column] == cellID].copy(deep=True)
+        # Save to csv before
+        #bsDF.to_csv(f"../data/prepared/{CURRENT_TIME}_bs{cellID}_before_ue.csv", index=False)
+        for UEid in bsDF[UEid_column].unique():
+            ueDF = bsDF[bsDF[UEid_column] == UEid].copy(deep=True)
+            ueDF_bins = pd.cut(ueDF.index, time_range)
+            ueDF = ueDF.groupby(ueDF_bins).mean()
+            ueDF.dropna(inplace=True)
+            concat_DF.append(ueDF)
+    # Concatenate all dataframes
+    df = pd.concat(concat_DF, ignore_index=False)
+    return df
+    
+
+def set_time_from_interval(df):
+    """
+    This function takes a DataFrame and performs two main operations:
+    1. Drops the first column of the DataFrame.
+    2. Converts the 'timestamp:vector' column to a timedelta, sets it as the index of the DataFrame, 
+       and keeps the column in the DataFrame.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+
+    Returns:
+        df (pd.DataFrame): The modified DataFrame with the 'timestamp:vector' column set as the index.
+    """
+    # Drop index column
+    df.drop(columns=[df.columns[0]], inplace=True)
+    # Use timestamp as index
+    df['timestamp:vector'] = pd.to_timedelta(df['timestamp:vector'], unit='S')
+    df.set_index('timestamp:vector', inplace=True, drop=False)
+    return df
+
+def aggregate_across_basestations(
+        df:pd.DataFrame,
+        fault_start:float,
+        fault_end:float,
+        servingCells:list,
+        fault_labels:list,
+        ):
+    """
+    This function aggregates data across base stations. It performs the following steps:
+    1. If fault_end is not provided, it sets it to the maximum timestamp in the DataFrame.
+    2. If fault_start is not provided, it sets it to 0.0.
+    3. Converts fault_start and fault_end to Timedelta.
+    4. Iterates over each unique 'servingCell:vector' in the DataFrame.
+    5. For each 'servingCell:vector', it groups the data by the index and calculates the mean for each group.
+    6. It then labels each row where 'servingCell:vector' is in servingCells and the timestamp is between fault_start and fault_end.
+    7. It appends the resulting DataFrame to a list.
+    8. Finally, it concatenates all the DataFrames in the list into a single DataFrame.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        fault_start (float): The start time for labeling. If None, it is set to 0.0.
+        fault_end (float): The end time for labeling. If None, it is set to the maximum timestamp in df.
+        servingCells (list): The list of serving cells for labeling.
+        fault_labels (list): The list of fault labels for labeling.
+
+    Returns:
+        df (pd.DataFrame): The aggregated DataFrame.
+    """
+    # Create a faults df with the fault start and end times
+    faults_df = pd.DataFrame({
+        'fault_start': fault_start,
+        'fault_end': fault_end,
+        'servingCells': servingCells,
+        'fault_labels': fault_labels,
+    })
+    # Set start and end as pd.timedelta seconds
+    faults_df['fault_start'] = pd.to_timedelta(faults_df['fault_start'], unit='S')
+    faults_df['fault_end'] = pd.to_timedelta(faults_df['fault_end'], unit='S')
+
+    
+    concat_DF = []
+
+    bsIds = list(df['servingCell:vector'].unique())
+    # Sort the list
+    bsIds.sort()
+    #print(f"cells list {bsIds}")
+
+    # Iterate over each unique 'servingCell:vector'
+    for cellID in bsIds:
+        # Make a deep copy of bsDF when df['servingCell:vector'] == cellID
+        bsDF = df[df['servingCell:vector'] == cellID].copy(deep=True)
+
+        # Group by index
+        bsDF_group = bsDF.groupby(by=bsDF['time_milli'])
+
+        # Calculate mean of each group when grouped by timestamp:vector
+        bsDF = bsDF_group.mean() #numeric_only=True)
+
+        low_percentile = 0.05
+        high_percentile = 0.98
+
+        # Calculate percentile features
+        # Calculate 95th percentile of RSRP in the each group
+        bsDF['rsrp_5'] = bsDF_group['servingRSRP:vector'].quantile(low_percentile)
+        bsDF['rsrp_95'] = bsDF_group['servingRSRP:vector'].quantile(high_percentile)
+        # Calculate 95th percentile of SINR in the each group
+        bsDF['sinr_5'] = bsDF_group['servingSINR:vector'].quantile(low_percentile)
+        bsDF['sinr_95'] = bsDF_group['servingSINR:vector'].quantile(high_percentile)
+        # Calculate 5th percentile of RSRQ in the each group
+        bsDF['rsrq_5'] = bsDF_group['servingRSRQ:vector'].quantile(low_percentile)
+        bsDF['rsrq_95'] = bsDF_group['servingRSRQ:vector'].quantile(high_percentile)
+        # Calculate distance percentiles
+        bsDF['dist_5'] = bsDF_group['servingDistance:vector'].quantile(low_percentile)
+        bsDF['dist_95'] = bsDF_group['servingDistance:vector'].quantile(high_percentile)
+        bsDF['thro_5'] = bsDF_group['phyThroughput:vector'].quantile(low_percentile)
+        bsDF['thro_95'] = bsDF_group['phyThroughput:vector'].quantile(high_percentile)
+
+        # Add a column called 'count' that contains the number of rows in each group
+        bsDF['count'] = bsDF_group.size()
         
-    def cast_timestamp_to_int(self):
-        # multiply by 10^len(decimal places)
-        for key, value in self.faults.items():
-            value['timestamp:vector'] = value['timestamp:vector'].apply(lambda x: int(x * 10**len(str(x).split('.')[-1])))
+        # Get rows from faults_df where servingCells is equal to cellID
+        faults_df_cell = faults_df[faults_df['servingCells'] == cellID]
 
-    def aggregate(self):
-        # aggregate using cell id and timestamp
-        for key, value in self.faults.items():
-            value = value.groupby(['timestamp:vector','servingCell:vector']).mean().reset_index()
+        # Iterate over the rows of bsDF
+        for index, row in bsDF.iterrows():
+            # Check if current row timestamp is greater than or equal to any fault start time in faults_df_cell
+            # and less than or equal to any fault end time in faults_df_cell
+            # To compare time, use bsDF timestamp:vector column
+            for i, fault_row in faults_df_cell.iterrows():
+                if (row["timestamp:vector"] >= fault_row['fault_start']) and (row["timestamp:vector"] <= fault_row['fault_end']):
+                    # Set the label of the current row to the fault label
+                    bsDF.at[index, 'label'] = fault_row['fault_labels']
+                    break
 
-    def label_normal(self,class_id):
-        '''
-        Label normal data
-        '''
-        self.faults['normal']['label'] = class_id
-
-    def label_epr(self,cell_id,class_id):
-        '''
-        Label epr data
-        '''
-        self.faults['epr']['label'] = 0
-        self.faults['epr']['label'] = self.faults['epr'].apply(lambda x: class_id if x['servingCell:vector']==cell_id else x['label'],axis=1)
-
-    def label_interference(self,cell_id,class_id):
-        '''
-        Label interference data
-        '''
-        self.faults['interference']['label'] = 0
-        self.faults['interference']['label'] = self.faults['interference'].apply(lambda x: class_id if x['servingCell:vector']==cell_id else x['label'],axis=1)
-
-
-    def merge(self):
-        '''
-        Merge all dataframes
-        '''
-        # combine all dataframes in the dictionary into one
-        combined_df = pd.concat(self.faults.values(), ignore_index=True)
-        return combined_df
-
-    @staticmethod
-    def remove_columns(
-        df,
-        columns = [
-            'timestamp:vector',
-            'servingCell:vector',
-            'UEid:vector',
-            'Unnamed: 0'
-            ]):
-        '''
-        Remove timestamp, cell id, and ue id
-        '''
-        df.drop(
-            columns,
-            axis=1,
-            inplace=True
-            )
-        return df
-
-
-def prepare_data():
-    prepare_data = PrepareData()
-
-    prepare_data.read_data(
-        '../data/latest/'
-        )
+        concat_DF.append(bsDF)
     
-    # cast columns to int
-    prepare_data.cast_cell_to_int()
-    prepare_data.cast_timestamp_to_int()
+    # Concatenate all dataframes
+    df = pd.concat(concat_DF, ignore_index=False)
 
-    # aggregate using cell id and timestamp
-    prepare_data.aggregate()
+    return df
 
-    # label data
-    prepare_data.label_normal()
-    prepare_data.label_epr(cell_id=2)
-    prepare_data.label_interference(cell_id=5)
 
-    # combine dataframes
-    combined_df = prepare_data.merge()
-
-    # remove timestamp, cell id, and ue id
-    combined_df = PrepareData.remove_columns(combined_df)
+def write_MTGNN_data(df, save_path): #, keep_rows):
+    """
+    This function prepares data for MTGNN (Multi-Time-Graph Neural Network) and saves it to a .txt file.
     
-    # save to csv
-    combined_df.to_csv('../data/combined.csv', index=False)
-    
+    Parameters:
+    df (pandas.DataFrame): The input dataframe.
+    save_path (str): The path where the output .txt file will be saved.
+    keep_rows (int): The number of rows to keep from each unique cell in the dataframe.
 
-def prepare_solar_data():
-    solar = pd.read_csv('../MTGNN/data/solar_AL.txt', sep=',')
-    print(solar.head())
-    print(solar.info(verbose=True))
+    Returns:
+    None
+    """
 
-def main():
+    # Get list of unique bast station ids
+    bs_ids = list(df['servingCell:vector'].unique())
+    # Sort the list
+    bs_ids.sort()
 
-    # Read data
-    normal_df = pd.read_csv('../data/June-12/normal-v1.csv')
-    epr_df = pd.read_csv('../data/June-12/epr-v1.csv')
-    #interference_df = pd.read_csv('../data/April-25/clean-data-simu5g-Interference-downtilt.csv')
-    #tlho_df = pd.read_csv('../data/April-25/clean-data-simu5g-TLHO.csv')
-    
-    # Add label column
-    normal_df['label'] = 0
-    epr_df['label'] = 0
-    #epr_df['label'] = 1
-    #interference_df['label'] = 2
-    #tlho_df['label'] = 3
-
-    epr_df['servingCell:vector'] = np.floor(epr_df['servingCell:vector']).astype(int)
-    epr_df['label'] = epr_df.apply(lambda x: 1 if x['servingCell:vector']==4 else x['label'],axis=1)
-    epr_df['timestamp:vector'] = epr_df['timestamp:vector'].apply(lambda x: int(x * 10**len(str(x).split('.')[-1])))
-    epr_df = epr_df.groupby(['timestamp:vector','servingCell:vector','label']).mean().reset_index()
-
-
-    normal_df['servingCell:vector'] = np.floor(normal_df['servingCell:vector']).astype(int)
-    normal_df['timestamp:vector'] = normal_df['timestamp:vector'].apply(lambda x: int(x * 10**len(str(x).split('.')[-1])))
-    normal_df = normal_df.groupby(['timestamp:vector','servingCell:vector','label']).mean().reset_index()
-
-    # Combine tables
-    df = pd.concat([normal_df,epr_df],axis=0)
-
-    # save to csv
-    df.to_csv('../data/June-12/combined.csv', index=False)
-    print(asd)
-    # Remove NaN due to throughput
-    df = normal_df.dropna()
-
-    # Create plots
-
-    # Preprocess data
-    df['servingCell:vector'] = df['servingCell:vector'].astype(int)
-
-    # Simulation time is in decimal and can vary in the number of decimal places
-    # Convert to integer by multiplying by 10^number of decimal places
-    # e.g., 0.1 -> 1, 0.01 -> 10, 0.001 -> 100
-    df['timestamp:vector'] = df['timestamp:vector'].apply(lambda x: int(x * 10**len(str(x).split('.')[-1])))
-
-    # Aggregate UE data to base stations
-    df = df.groupby(['timestamp:vector','servingCell:vector','label']).mean().reset_index()
-    
-    #df = df[df['label']==3][df['servingCell:vector']==6]
-    
-    # print(df.head())
-    # print(df['servingCell:vector'].unique())
-    # print(df.info())
-    
-    # Plot 'feature' column against 'time' column
-    df.plot(x='timestamp:vector', y='servingRSRP:vector', marker='o')
-
-    # Set plot title and axis labels
-    plt.title('Feature Variation Over Time')
-    plt.xlabel('Time')
-    plt.ylabel('Feature')
-
-    # Save the plot as an image file (e.g., PNG)
-    plt.savefig('../data/plots/plot.png')
-
-
-    df.to_csv('../data/TLHO.csv', index=False)
-
-    sys.exit()
-    # Filter out the groups that do not have all base stations
-    base_stations = df['servingCell:vector'].unique()
-    filtered_groups = []
-    for _, group in grouped:
-        if set(group['servingCell:vector'].unique()) == set(base_stations):
-            filtered_groups.append(group)
-
-    # Concatenate the filtered groups back into a single dataframe
-    df = pd.concat(filtered_groups)
-    # Reset the index of the filtered dataframe
-    df.reset_index(drop=True, inplace=True)
-    all_df.append(df)
-
-    df = pd.concat(all_df)
-
-    print(df.head())
-    df.to_csv('../data/data.csv', index=False)
-
-
-    
-
-    # Aggregate temporal data so that we have per base station per unit time
-    # print(df['servingCell:vector'].unique())
-    # df = df[df['servingCell:vector']==6.]
-    # df = df.sort_values(by='timestamp:vector')
-    # print(df['timestamp:vector'])
-
-
-    # stop the program here
-    sys.exit()
-
-    # Write data to tfrecord
-    writer = tf.io.TFRecordWriter("example.tfrecords")
-    for row in df.values:
-        features = row.tolist()
-        example = tf.train.Example(features=tf.train.Features(feature={
-            'feature': tf.train.Feature(float_list=tf.train.FloatList(value=features))
-        }))
-        writer.write(example.SerializeToString())
-    writer.close()
-
-def prepare_mtgnn_data():
-    prepare_data = PrepareData()
-
-    prepare_data.read_data(
-        '../data/latest/'
-        )
-    
-    # cast columns to int
-    prepare_data.cast_cell_to_int()
-    prepare_data.cast_timestamp_to_int()
-
-    # aggregate using cell id and timestamp
-    prepare_data.aggregate()
-
-    # label data
-    prepare_data.label_normal(class_id=0)
-    prepare_data.label_epr(cell_id=2,class_id=1)
-    prepare_data.label_interference(cell_id=5,class_id=1)
-
-    # combine dataframes
-    combined_df = prepare_data.merge()
-
-    # remove all columns except for servingcell,timestamp and SINR
-    keep_columns = [
-        'servingCell:vector',
-        'timestamp:vector',
-        'servingSINR:vector',
-        'servingRSRP:vector',
-        'label'
-        ]
-    # drop all other columns
-    combined_df = combined_df.drop(columns=[col for col in combined_df.columns if col not in keep_columns])
-
-    # create a new dataframe where each column is SINR values of one cell id
-    new_dataframe = pd.DataFrame()
-
+    # Save data for MTGNN
+    #new_dataframe = pd.DataFrame()
+    data = {}
     # iterate over unique cell ids and retrieve dataframe for each cell id
-    for cell_id in combined_df['servingCell:vector'].unique():
+    for cell_id in bs_ids:
         # get dataframe for current cell id
-        cell_df = combined_df[combined_df['servingCell:vector']==cell_id]
+        cell_df = df[df['servingCell:vector']==cell_id]
         # sort by timestamp
         cell_df = cell_df.sort_values(by='timestamp:vector')
-        # reset index
+        # reset index to have integer values
         cell_df = cell_df.reset_index(drop=True)
-        # add SINR values untill 161098 to new dataframe
-        new_dataframe[f"{cell_id}_sinr"] = cell_df['servingSINR:vector'].values[:161098]
-        new_dataframe[f"{cell_id}_rsrp"] = cell_df['servingRSRP:vector'].values[:161098]
         
-        
+        # add SINR values untill 1954 to new dataframe
+        data[f"{cell_id}_posx"] = list(cell_df['positionX:vector'].values) #[:keep_rows]
+        data[f"{cell_id}_posy"] = list(cell_df['positionY:vector'].values) #[:keep_rows]
+        data[f"{cell_id}_dist"] = list(cell_df['servingDistance:vector'].values) #[:keep_rows]
+        data[f"{cell_id}_rsrp"] = list(cell_df['servingRSRP:vector'].values) #[:keep_rows]
+        data[f"{cell_id}_rsrq"] = list(cell_df['servingRSRQ:vector'].values) #[:keep_rows]
+        data[f"{cell_id}_sinr"] = list(cell_df['servingSINR:vector'].values) #[:keep_rows]
+        data[f"{cell_id}_thro"] = list(cell_df['phyThroughput:vector'].values) #[:keep_rows]
+        data[f"{cell_id}_rsrp_5"] = list(cell_df['rsrp_5'].values)
+        data[f"{cell_id}_rsrp_95"] = list(cell_df['rsrp_95'].values)
+        data[f"{cell_id}_sinr_5"] = list(cell_df['sinr_5'].values)
+        data[f"{cell_id}_sinr_95"] = list(cell_df['sinr_95'].values)
+        data[f"{cell_id}_rsrq_5"] = list(cell_df['rsrq_5'].values)
+        data[f"{cell_id}_rsrq_95"] = list(cell_df['rsrq_95'].values)
+        data[f"{cell_id}_dist_5"] = list(cell_df['dist_5'].values)
+        data[f"{cell_id}_dist_95"] = list(cell_df['dist_95'].values)
+        data[f"{cell_id}_thro_5"] = list(cell_df['thro_5'].values)
+        data[f"{cell_id}_thro_95"] = list(cell_df['thro_95'].values)
+        #data[f"{cell_id}_thro"] = list(cell_df['rlcThroughputDl:vector'].values)[:keep_rows]
+
     # iterate over unique cell ids and retrieve dataframe for each cell id
-    for cell_id in combined_df['servingCell:vector'].unique():
+    for cell_id in bs_ids:
         # get dataframe for current cell id
-        cell_df = combined_df[combined_df['servingCell:vector']==cell_id]
+        cell_df = df[df['servingCell:vector']==cell_id]
         # sort by timestamp
         cell_df = cell_df.sort_values(by='timestamp:vector')
         # reset index
         cell_df = cell_df.reset_index(drop=True)
         # add label column for each cell as well
-        new_dataframe[f"{cell_id}_label"] = cell_df['label'].values[:161098]
+        data[f"{cell_id}_label"] = list(cell_df['label'].values) #[:keep_rows]
+
+    # Create new dataframe from dictionary
+    new_dataframe = pd.DataFrame.from_dict(data)
 
     # save new_dataframe to a comma separated .txt file
-    new_dataframe.to_csv('../MTGNN/data/sinr_label_multi.txt', sep=',', index=False, header=False)
+    new_dataframe.to_csv(save_path+f'{CURRENT_TIME}_MTGNN.txt', sep=',', index=False, header=False)
 
 
+def write_FCN_data(df, save_path): #, keep_rows):
+    """
+    This function prepares data for FCN (Fully Connected Network) and saves it to a CSV file.
+    
+    Parameters:
+    df (pandas.DataFrame): The input dataframe.
+    save_path (str): The path where the output CSV file will be saved.
+    keep_rows (int): The number of rows to keep from each unique cell in the dataframe.
+
+    Returns:
+    None
+    """
+    # Save data for FCN
+    fcn_df = []
+    for cell_id in df['servingCell:vector'].unique():
+        # get dataframe for current cell id
+        cell_df = df[df['servingCell:vector']==cell_id]
+        # sort by timestamp
+        cell_df = cell_df.sort_values(by='timestamp:vector')
+        # Keep only the first 2509 rows
+        #cell_df = cell_df #[:keep_rows]
+        # append to list
+        fcn_df.append(cell_df)
+    
+    # Concatenate all dataframes
+    df = pd.concat(fcn_df, ignore_index=False)
+    # Remove timestamp column
+    df.drop(columns=['servingCell:vector'], inplace=True)
+
+    # Ignore index while saving to csv
+    df.to_csv(save_path + f"{CURRENT_TIME}_base.csv", index=False)
+
+def set_time_from_interval(df):
+    """
+    This function takes a DataFrame and sets the timestamp column as the start
+    time of the time interval in the index of the dataframe.
+    """
+    df.index = df.index.map(lambda x: x.left)
+    df.index = pd.to_timedelta(df.index)
+    #df['timestamp:vector'] = df.index
+    return df
 
 
-if __name__ == '__main__':
-    #prepare_solar_data()
-    # main()
-    #sprepare_data()
-    #prepare_mtgnn_data()
-    pass
+def plot_cell_kpi_vs_time(df, cell_id, kpis, ouput_path):
+    """
+    This function plots the given KPIs for the given cell ID against time.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        cell_id (int): The cell ID to plot.
+        kpis (list): The list of KPIs to plot.
+    """
+    # Get the dataframe for the given cell ID
+    cell_df = df[df['servingCell:vector'] == cell_id]
+
+    # Reset index to integer values
+    cell_df.reset_index(drop=True, inplace=True)
+
+    # Convert timstamp to seconds as integers
+    cell_df['timestamp:vector'] = cell_df['timestamp:vector'].dt.total_seconds().astype(int)
+
+    # Sort by timestamp
+    cell_df = cell_df.sort_values(by='timestamp:vector')
+
+    # Plot the given KPIs against time
+    for kpi in kpis:
+        plt.plot(cell_df['timestamp:vector'], cell_df[kpi])
+        plt.xlabel('Time')
+        plt.ylabel(kpi)
+        #plt.show()
+        plt.savefig(f"{ouput_path}/{cell_id}_{kpi}.png")
+        plt.close()
+
+
+def aggregate_paired_basestations(df):
+    """
+    This function aggregates data from paired base stations.
+
+    It first resets the index of the DataFrame to integer values. Then, it reduces the 'servingCell:vector' values by 1.0 if they are even.
+    After that, it groups the DataFrame by 'servingCell:vector' and 'timestamp:vector' and calculates the mean of the grouped data.
+    It then resets the index to move 'servingCell:vector' and 'timestamp:vector' back to the columns.
+    Finally, it sets 'timestamp:vector' as the index of the DataFrame.
+
+    Parameters:
+    df (pandas.DataFrame): The DataFrame to be processed.
+
+    Returns:
+    pandas.DataFrame: The processed DataFrame with aggregated data.
+    """
+    # Reset index to integer values
+    df.reset_index(drop=True, inplace=True)
+    # Reduce servingCell:vector values by 1.0 if they are even
+    df.loc[df['servingCell:vector'] % 2 == 0, 'servingCell:vector'] = df['servingCell:vector'] - 1.0    
+    # Group by servingCell:vector and timestep and calculate the mean
+    df = df.groupby(['servingCell:vector', 'timestamp:vector'],group_keys=False).mean()
+    # Reset the index to move servingCell:vector and timestamp:vector back to the columns
+    df = df.reset_index()
+    # set timestamp:vector column as index
+    # Use timestamp as index
+    df.set_index('timestamp:vector', inplace=True, drop=False)
+    return df
+
+
+def prepare_data():
+    MAP_FAULT_TO_LABEL = {
+        'TLHO': 1,
+        'INTERFERENCE' : 2,
+        'EPR' : 3,
+    }
+    TIME_INTERVAL = 1.0
+
+    # Parse arguments using argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--save_path', type=str, default=None, #"../data/chicago-peak/", 
+                        help='The path to save the prepared data.')
+    parser.add_argument('--data_path', type=str, default=None, #"../data/chicago-peak/chicago-peak-scenario.csv",
+                        help='The path to the input data.')
+    parser.add_argument('--fault_description_txt', type=str, default=None, #"../data/chicago-peak/fault-description.txt",
+                        help='The path to the fault-description.txt file.')
+    args = parser.parse_args()
+
+
+    ############################
+    # Read description file
+    ############################
+    fault_description_df = get_faults_df_omni(args.fault_description_txt)
+    
+    # Get fault description dataframe
+    fault_label, fault_start, fault_end, servingCells = get_fault_periods_omni(
+        fault_description_df,
+        MAP_FAULT_TO_LABEL,
+        )
+    
+    ############################
+    # Read data file csv
+    ############################
+    # Read time series kpi data
+    df = pd.read_csv(args.data_path)
+
+    ############################
+    # Filter unnecessary Time columns
+    ############################
+    # Rename the column "positionX:vector-Time" as 'timestamp:vector'
+    df.rename(columns={'positionX:vector-Time':'timestamp:vector'}, inplace=True)
+    # Drop columns with 'Time' at the end 
+    df = df.loc[:,~df.columns.str.contains('Time')]
+    # Drop index column
+    df.drop(columns=[df.columns[0]], inplace=True)
+    df = set_time_index(df)
+    print(f"Number of rows before aggregation: {len(df)}")
+
+
+    ############################
+    # Aggregate data by seconds for user equipments
+    ############################
+    df = aggregate_by_timedelta(df, timedelta=f'{TIME_INTERVAL}S')
+    print(f"Number of rows after aggregation: {len(df)}")
+    df = set_time_from_interval(df)
+    df['servingCell:vector'] = df['servingCell:vector'].astype(int)
+    df['timestamp:vector'] = df.index
+
+    df['time_milli'] = df['timestamp:vector'].dt.total_seconds().astype(float)*1000 #+ (df['timestamp:vector'].dt.microseconds / 1e3)
+    df['time_milli'] = df['time_milli'].astype(int)
+    # Reset index to integer values
+    df.reset_index(drop=True, inplace=True)
+    # Remove ueid column
+    df.drop(columns=['UEid'], inplace=True)
+    print(f"after time bin aggregation : {df.info()}")
+    df['label'] = 0
+
+    ############################
+    # Aggregate data by time for base stations
+    ############################
+    # Aggregate data across base stations
+    df = aggregate_across_basestations(
+        df,
+        fault_start=fault_start,
+        fault_end=fault_end,
+        servingCells=servingCells,
+        fault_labels=fault_label,
+        )
+    print(f"after ue aggregation : {df.info()}")
+
+    ############################
+    # Iterate over each cell id and plot the kpis
+    ############################
+    bsIDs = list(df['servingCell:vector'].unique())
+    bsIDs.sort()
+    # Create plots directory
+    os.makedirs(f'{args.save_path}/plots', exist_ok=True)
+    for cell_id in bsIDs:
+        plot_cell_kpi_vs_time(
+            df, 
+            cell_id, 
+            [
+                'servingDistance:vector',
+                'servingRSRP:vector',
+                'servingRSRQ:vector',
+                'servingSINR:vector',
+                'phyThroughput:vector',
+                'rsrp_5',
+                'rsrp_95',
+                'sinr_5',
+                'sinr_95',
+                'rsrq_5',
+                'rsrq_95',
+                'dist_5',
+                'dist_95',
+                'thro_5',
+                'thro_95',
+                'count',
+                'label'
+            ], 
+            f'{args.save_path}/plots',
+            )
+
+    print(df.info())
+    print(df['servingCell:vector'].value_counts())
+    print(df['label'].value_counts())
+    
+
+    ############################
+    # Only keep rows for which all basestations have data
+    ############################
+    # Get sorted list of unique bs
+    bsIds = list(df['servingCell:vector'].unique())
+    # Sort the list
+    bsIds.sort()
+    
+
+    # Iterate over the list
+    for cellID in bsIds:
+        # Get dataframe for current cell id
+        cellDF = df[df['servingCell:vector'] == cellID].copy(deep=True)
+
+        if int(cellID) == 1:
+            #print(f"getting 1")
+            # Create a seperate dataframe from only the timestamp column
+            timestampDF = cellDF['timestamp:vector'].copy(deep=True)
+            continue
+        # Merge the timestamp column with the previous timestamp column
+        timestampDF = pd.merge(timestampDF, cellDF['timestamp:vector'], on='timestamp:vector', how='inner')
+
+    # Create a list to store dataframes
+    concat_DF = []
+    for cellID in bsIds:
+        # Get dataframe for current cell id
+        cellDF = df[df['servingCell:vector'] == cellID].copy(deep=True)
+
+        # Merge the timestamp column with the previous timestamp column
+        cellDF = pd.merge(timestampDF, cellDF, on='timestamp:vector', how='inner')
+
+        concat_DF.append(cellDF)
+    
+    # Concatenate all dataframes
+    df = pd.concat(concat_DF, ignore_index=False)
+
+    print(f"before writing, bs counts: {df['servingCell:vector'].value_counts()}")
+    print(f"before writing, label count: {df['label'].value_counts()}")
+    
+    ############################
+    # Write data for MTGNN
+    ############################
+    write_MTGNN_data(df, args.save_path) #, keep_rows=MIN_LABEL)
+    
+    ############################
+    # Write data for FCN
+    ############################
+    write_FCN_data(df, args.save_path) #, keep_rows=MIN_LABEL)
+
+
+if __name__ == "__main__":
+    prepare_data()
+

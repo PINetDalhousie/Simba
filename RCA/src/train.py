@@ -1,154 +1,476 @@
-import os
-import datetime
-import tensorflow as tf
 import pandas as pd
-from models import FullyConnectedNN
-from sklearn.model_selection import train_test_split
-from tensorflow.keras.callbacks import TensorBoard
-from metrics import F1Score
-from sklearn.preprocessing import MinMaxScaler
-from loss import WeightedCategoricalCrossentropy
+import torch
+from torch.utils.data import Dataset
+from torch.utils.data import DataLoader
+import numpy as np
+import torch
 
-def train_MTGNN():
-    #torch.cuda.set_device(0)
-    current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+from torch_geometric_temporal.nn.attention import MTGNN
+# import precision recall and f1scores from scikit learn
+from sklearn.metrics import precision_score, recall_score, f1_score
+from torch.utils.tensorboard import SummaryWriter
+from datetime import datetime
+from transformer_mtgnn import TransformerMTGNN
+#from torcheval.metrics.functional import multiclass_f1_score, multiclass_precision, multiclass_recall
+# Torchevavl metrics
+from torcheval.metrics import MulticlassF1Score, MulticlassPrecision, MulticlassRecall, Mean
+#from RCA_clean.src.mtgnn_mixprop import GCNMTGNN
+
+# Get current time
+current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+# Create log path
+log_path = f'/users/grad/boeira/NetRepAIr/RCA/logs/{current_time}'
+# Create the path
+import os
+os.makedirs(log_path)
+
+# Make a copy of the script and save in the log path
+import shutil
+shutil.copy('/users/grad/boeira/NetRepAIr/RCA_clean/src/train.py', f'{log_path}/train.py')
+
+# Parse arguments using argparse
+import argparse
+parser = argparse.ArgumentParser(description='Train MTGNN on large topology dataset')
+parser.add_argument('--model', type=str, default='TransformerMTGNN', help='Model to use: MTGNN or TransformerMTGNN or GCNMTGNN')
+parser.add_argument('--data', type=str, default='/users/grad/boeira/NetRepAIr/RCA/data/7gnb-90ue/20240401_144923_MTGNN.txt', help='Dataset to use')
+parser.add_argument('--num_nodes', type=int, default=7, help='seed for reproducibility')
+args = parser.parse_args()
+# Save the arguments in a txt file in log_path
+with open(f'{log_path}/args.txt', 'w') as f:
+  f.write(str(args))
+
+MODEL = args.model # "MTGNN" or "TransformerMTGNN"
+NUM_NODES = args.num_nodes
+SUBGRAPH_SIZE = args.num_nodes
+NUM_FEATURES = 14
+TRAIN_SIZE = 0.5
+VAL_SIZE = 0.25
+NUM_CLASSES = 4
+BATCH_SIZE = 2000
+seq_len = 5
+LR = 0.0003
+epochs = 140
+torch.manual_seed(0)
+
+
+# Load the mtgnn .txt file as a pandas dataframe
+graph_data = pd.read_csv(args.data, sep=',', header=None)
+
+# Print number of columns
+# print(graph_data.shape)
+# print(asd)
+
+# Separate the data into the features and the target
+features = graph_data.iloc[:, :NUM_NODES * NUM_FEATURES]
+target = graph_data.iloc[:, NUM_NODES * NUM_FEATURES:]
+
+# Split the data into train, validation and test sets
+train_size = int(TRAIN_SIZE * len(features))
+val_size = int(VAL_SIZE * len(features))
+test_size = len(features) - train_size - val_size
+
+train_features = features.iloc[:train_size]
+train_target = target.iloc[:train_size]
+
+ClASS_COUNTS = [0, 0, 0, 0]
+# Calculate the number of samples for each class
+# Iterate over the columns
+for column in train_target.columns:
+  class_counts = train_target[column].value_counts()
+  print(class_counts)
+  for i in range(NUM_CLASSES):
+    if i in class_counts:
+      ClASS_COUNTS[i] += class_counts[i]
+
+# print(ClASS_COUNTS)
+# print(asd)
+
+class_weights = [x / sum(ClASS_COUNTS) for x in ClASS_COUNTS]
+class_weights = [1/x for x in class_weights]
+
+#class_weights = [x / sum(class_weights) for x in class_weights]
+class_weights = torch.tensor(class_weights, dtype=torch.float)
+
+
+val_features = features.iloc[train_size:train_size+val_size]
+val_target = target.iloc[train_size:train_size+val_size]
+
+test_features = features.iloc[train_size+val_size:]
+test_target = target.iloc[train_size+val_size:]
+
+# Convert the data into float tensors
+train_features = torch.tensor(train_features.values, dtype=torch.float)
+train_target = torch.tensor(train_target.values, dtype=torch.float)
+
+val_features = torch.tensor(val_features.values, dtype=torch.float)
+val_target = torch.tensor(val_target.values, dtype=torch.float)
+
+test_features = torch.tensor(test_features.values, dtype=torch.float)
+test_target = torch.tensor(test_target.values, dtype=torch.float)
+
+
+# Create a custom dataset
+class GraphDataset(Dataset):
+  def __init__(self, features, target, seq_len, num_nodes):
+    self.features = features
+    self.target = target
+    self.seq_len = seq_len
+    self.num_nodes = num_nodes
+
+  def __len__(self):
+    return len(self.features) - self.seq_len + 1
+
+  def __getitem__(self, idx):
+    # Get seq_len data points
+    current_features = self.features[idx:idx+self.seq_len]
+    # Reshape to seq_leng x num_nodes x num_features
+    current_features = current_features.view(self.seq_len, self.num_nodes, -1)
+    # Permute the tensor to num_features x num_nodes x seq_len
+    current_features = current_features.permute(2, 1, 0)
+
+    # Get the target
+    current_target = self.target[idx+self.seq_len-1,:]
+    # One hot encode the target
+    current_target = torch.nn.functional.one_hot(current_target.to(torch.int64), num_classes=NUM_CLASSES)
     
-    os.system(f"python ../MTGNN/train_single_step.py --save ../logs/{current_time}.pt --data ../MTGNN/data/solar_AL.txt --num_nodes 137 --batch_size 32 --epochs 30 --horizon 3")
+    # Permute target to num_classes x num_nodes x 1
+    current_target = current_target.permute(1, 0).unsqueeze(2)
+    # Cast to float
+    current_target = current_target.float()
 
-def train_FCN_AD():
-    # define constants
-    split_type = 'random'
-    train_size = 0.6
-    validation_size = 0.39
-    test_size = 0.01
-    path_to_data = '../data/omni1/20240212_215449_base_AD.csv'
-    BATCH_SIZE = 128
-    lr = 0.0003
+    return current_features, current_target
 
-    # get current time
-    current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+## Calculate the mean and std of the dataset
+mean = train_features.mean(dim=0)
+std = train_features.std(dim=0)
+# Normalize the dataset
+train_features = (train_features - mean) / std
+val_features = (val_features - mean) / std
+test_features = (test_features - mean) / std
+
+# Create a dataloader
+train_dataset = GraphDataset(train_features, train_target, seq_len=seq_len, num_nodes=NUM_NODES)
+train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+
+val_dataset = GraphDataset(val_features, val_target, seq_len=seq_len, num_nodes=NUM_NODES)
+val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+test_dataset = GraphDataset(test_features, test_target, seq_len=seq_len, num_nodes=NUM_NODES)
+test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+# Get cpu, gpu or mps device for training.
+device = (
+  "cuda"
+  if torch.cuda.is_available()
+  else "mps"
+  if torch.backends.mps.is_available()
+  else "cpu"
+)
+print(f"Using {device} device")
+
+if MODEL == "MTGNN":
+  model = MTGNN(
+    gcn_true=True,
+    build_adj=True,
+    gcn_depth=1,
+    num_nodes=NUM_NODES,
+    kernel_set=[3, 3],
+    kernel_size=3,
+    dropout=0.0,
+    subgraph_size=SUBGRAPH_SIZE,
+    node_dim=NUM_FEATURES,
+    dilation_exponential=1,
+    conv_channels=32,
+    residual_channels=32,
+    skip_channels=30,
+    end_channels=32,
+    seq_length=seq_len,
+    layers=1,
+    propalpha=0.5,
+    tanhalpha=0.5,
+    in_dim=NUM_FEATURES,
+    out_dim=NUM_CLASSES,
+    layer_norm_affline=False,
+  ).to(device)
+elif MODEL == "TransformerMTGNN":
+  model = TransformerMTGNN(
+    gcn_true=True,
+    build_adj=True,
+    gcn_depth=1,
+    num_nodes=NUM_NODES,
+    kernel_set=[3, 3],
+    kernel_size=3,
+    dropout=0.0,
+    subgraph_size=SUBGRAPH_SIZE,
+    node_dim=NUM_FEATURES,
+    dilation_exponential=1,
+    conv_channels=32,
+    residual_channels=32,
+    skip_channels=30,
+    end_channels=32,
+    seq_length=seq_len,
+    layers=1,
+    propalpha=0.5,
+    tanhalpha=0.5,
+    in_dim=NUM_FEATURES,
+    out_dim=NUM_CLASSES,
+    layer_norm_affline=False,
+  ).to(device)
+elif MODEL == "GCNMTGNN":
+  model = GCNMTGNN(
+    gcn_true=True,
+    build_adj=True,
+    gcn_depth=1,
+    num_nodes=NUM_NODES,
+    kernel_set=[3, 3],
+    kernel_size=3,
+    dropout=0.0,
+    subgraph_size=SUBGRAPH_SIZE,
+    node_dim=NUM_FEATURES,
+    dilation_exponential=1,
+    conv_channels=32,
+    residual_channels=32,
+    skip_channels=32,
+    end_channels=32,
+    seq_length=seq_len,
+    layers=1,
+    propalpha=0.5,
+    tanhalpha=0.5,
+    in_dim=NUM_FEATURES,
+    out_dim=NUM_CLASSES,
+    layer_norm_affline=False,
+    batch_size = BATCH_SIZE,
+  ).to(device)
+
+
+print(model)
+class_weights = class_weights.to(device)
+
+from torch.nn import functional as F
+
+
+class WeightedCELoss(torch.nn.Module):
+  def __init__(self, weights):
+    super(WeightedCELoss, self).__init__()
+    self.weights = weights
+    print(weights)
+
+  def forward(self, output, target):
+    # Apply weighted cross-entropy loss
+    loss = F.cross_entropy(output, target, weight=self.weights, reduction='none')
+    # Sum across 2nd dimension
+    loss = loss.sum(dim=1)
+    # Divide by number of base stations
+    loss = loss / NUM_NODES
+    # Reduce loss to batch mean
+    return loss.mean()
+  
+
+loss_fn = WeightedCELoss(class_weights)
+#loss_fn = torch.nn.CrossEntropyLoss(weight=class_weights)
+
+optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+
+# Initialize train metrics
+train_f1score = MulticlassF1Score(num_classes=NUM_CLASSES,average=None)
+train_precision = MulticlassPrecision(num_classes=NUM_CLASSES,average=None)
+train_recall = MulticlassRecall(num_classes=NUM_CLASSES,average=None)
+train_mean_f1score = Mean()
+train_mean_precision = Mean()
+train_mean_recall = Mean()
+
+# Initialize val metrics
+val_f1score = MulticlassF1Score(num_classes=NUM_CLASSES,average=None)
+val_precision = MulticlassPrecision(num_classes=NUM_CLASSES,average=None)
+val_recall = MulticlassRecall(num_classes=NUM_CLASSES,average=None)
+val_mean_f1score = Mean()
+val_mean_precision = Mean()
+val_mean_reall = Mean()
+
+
+# Initialize test metrics
+test_f1score = MulticlassF1Score(num_classes=NUM_CLASSES,average=None)
+test_precision = MulticlassPrecision(num_classes=NUM_CLASSES,average=None)
+test_recall = MulticlassRecall(num_classes=NUM_CLASSES,average=None)
+test_mean_f1score = Mean()
+test_mean_precision = Mean()
+test_mean_reall = Mean()
+
+
+
+def train(dataloader, model, loss_fn, optimizer, summary_writer, epoch):
+  size = len(dataloader.dataset)
+  model.train()
+  # Track number of samples for each class
+  class_counts = np.zeros(NUM_CLASSES)
+
+  for batch, (X, y) in enumerate(dataloader):
+    X, y = X.to(device), y.to(device)
+
+    # Compute prediction error
+    pred = model(X)
     
-    # load csv
-    df = pd.read_csv(path_to_data)
+    # Add softmax layer to the output
+    pred = torch.nn.functional.softmax(pred, dim=1)
     
-    # set output size for last layer
-    output_size = 2
-
-    # Calculate validation size
-    val_size = validation_size / (train_size + validation_size)
-
-    # Split into train, validation and test using scikit-learn
-    if split_type == 'random': 
-        # Drop timestamp column
-        df = df.drop(["timestamp:vector"],axis=1)
-        train, test = train_test_split(df, test_size=test_size, random_state=42)
-        train, val = train_test_split(train, test_size=val_size, random_state=42)
-    elif split_type == 'time':
-        # sort by timestamp before splitting
-        df = df.sort_values(by=['timestamp:vector'])
-        # Drop timestamp column
-        df = df.drop(["timestamp:vector"],axis=1)
-        train, test = train_test_split(df, test_size=test_size, shuffle=False)
-        train, val = train_test_split(train, test_size=val_size, shuffle=False)
-        # Drop timestamp column
-
-    # Print label counts
-    print('Train label counts:')
-    print(train['label'].value_counts())
-    print('Validation label counts:')
-    print(val['label'].value_counts())
-    
-
-    # save test set
-    #test.to_csv('../data/test.csv', index=False)
-
-    # Calculate minority class ratio
-    minority_class_ratio = len(train[train["label"]==1])/len(train[train["label"]==0])
-    #minority_class_ratio = 1 - minority_class_ratio
-    #print(minority_class_ratio)
+    loss = loss_fn(pred, y)
+    #print(loss)
     #print(asd)
 
+    # Backpropagation
+    loss.backward()
+    optimizer.step()
+    optimizer.zero_grad()
 
-    # Prepare train and validation sets
-    train_kpis = train.drop(["label"],axis=1)
-    min_max_scaler = MinMaxScaler()
-    train_kpis = min_max_scaler.fit_transform(train_kpis)
-    train_kpis = train_kpis.astype('float32')
-    train_labels = tf.one_hot(train["label"],2)
+    #if batch % 100 == 0:
+    loss, current = loss.item(), (batch + 1) * len(X)
+
+    # Calculate F1 score
+    pred = pred.argmax(dim=1)
+    y = y.argmax(dim=1)
+    pred = pred.reshape(-1)
+    y = y.reshape(-1)
+    # Convert to numpy
+    pred = pred.cpu().detach()
+    y = y.cpu().detach()
+    # Check both shapes are the same
+    assert pred.shape == y.shape
+
+    #train_f1score = multiclass_f1_score(pred, y, num_classes=NUM_CLASSES, average=None).cpu().detach().numpy()
+    train_f1score.update(pred, y)
+    train_precision.update(pred, y)
+    train_recall.update(pred, y)
+
+    # The f1score, recall and precision are calculated for each class. We want
+    # to calculate the mean of these metrics to get an average over classes
+    train_mean_f1score.update(train_f1score.compute())
+    train_mean_precision.update(train_precision.compute())
+    train_mean_recall.update(train_recall.compute())
+
+  # Log the loss and f1 score
+  
+  print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+  print(f"Train f1 score: {train_f1score}")
+  summary_writer.add_scalar('Loss', loss, epoch)
+  for i in range(NUM_CLASSES):
+    #summary_writer.add_scalar(f'F1_Score_{i}', train_f1score[i], epoch)
+    summary_writer.add_scalar(f'F1_Score_{i}', train_f1score.compute()[i].item(), epoch)
+    summary_writer.add_scalar(f'Precision_{i}', train_precision.compute()[i].item(), epoch)
+    summary_writer.add_scalar(f'Recall_{i}', train_recall.compute()[i].item(), epoch)
+    summary_writer.add_scalar(f'Mean_F1_Score', train_mean_f1score.compute().item(), epoch)
+    summary_writer.add_scalar(f'Mean_Precision', train_mean_precision.compute().item(), epoch)
+    summary_writer.add_scalar(f'Mean_Recall', train_mean_recall.compute().item(), epoch)
+
     
-    val_kpis = val.drop(["label"],axis=1)
-    val_kpis = min_max_scaler.transform(val_kpis)
-    val_kpis = val_kpis.astype('float32')
-    val_labels = tf.one_hot(val["label"],2)
+
+def val(dataloader, model, loss_fn, summary_writer, epoch):
+  model.eval()
+  size = len(dataloader.dataset)
+  val_loss, correct = 0, 0
+  class_counts = np.zeros(NUM_CLASSES)
+  with torch.no_grad():
+    for X, y in dataloader:
+      X, y = X.to(device), y.to(device)
+      pred = model(X)
+      pred = torch.nn.functional.softmax(pred, dim=1)
+      val_loss = loss_fn(pred, y).item()
+      
+      pred = pred.argmax(dim=1)
+      y = y.argmax(dim=1)
+      pred = pred.reshape(-1)
+      y = y.reshape(-1)
+      pred = pred.cpu().detach()
+      y = y.cpu().detach()
+      
+      assert pred.shape == y.shape
+      val_f1score.update(pred, y)
+      val_precision.update(pred, y)
+      val_recall.update(pred, y)
+
+      val_mean_f1score.update(val_f1score.compute())
+      val_mean_precision.update(val_precision.compute())
+      val_mean_reall.update(val_recall.compute())
+
+  
+  print(f"Avg val loss: {val_loss:>8f}")
+  print(f"Val f1 score: {val_f1score}")
+  summary_writer.add_scalar('Loss', val_loss, epoch)
+  for i in range(NUM_CLASSES):
+    summary_writer.add_scalar(f'F1_Score_{i}', val_f1score.compute()[i].item(), epoch)
+    summary_writer.add_scalar(f'Precision_{i}', val_precision.compute()[i].item(), epoch)
+    summary_writer.add_scalar(f'Recall_{i}', val_recall.compute()[i].item(), epoch)
+    summary_writer.add_scalar(f'Mean_F1_Score', val_mean_f1score.compute().item(), epoch)
+    summary_writer.add_scalar(f'Mean_Precision', val_mean_precision.compute().item(), epoch)
+    summary_writer.add_scalar(f'Mean_Recall', val_mean_reall.compute().item(), epoch)
+
+
+# Create summary writers for train and val to log loss and f1score
+train_writer = SummaryWriter(f'{log_path}/train')
+val_writer = SummaryWriter(f'{log_path}/val')
+test_writer = SummaryWriter(f'{log_path}/test')
+
+for t in range(epochs):
+  print(f"Epoch {t+1}\n-------------------------------")
+  train(train_dataloader, model, loss_fn, optimizer, train_writer, t)
+  val(val_dataloader, model, loss_fn, val_writer, t)
+  # Reset the metrics
+  train_f1score.reset()
+  train_precision.reset()
+  train_recall.reset()
+  val_f1score.reset()
+  val_precision.reset()
+  val_recall.reset()
+  train_mean_f1score.reset()
+  train_mean_precision.reset()
+  train_mean_recall.reset()
+  val_mean_f1score.reset()
+  val_mean_precision.reset()
+  val_mean_reall.reset()
+
+# Closer writers
+train_writer.close()
+val_writer.close()
+
+# Save the model
+torch.save(model.state_dict(), f'{log_path}/model.pth')
+print("Done!")
+
+# Test the model
+model.eval()
+size = len(test_dataloader.dataset)
+test_loss, correct = 0, 0
+class_counts = np.zeros(NUM_CLASSES)
+with torch.no_grad():
+  for X, y in test_dataloader:
+    X, y = X.to(device), y.to(device)
+    pred = model(X)
+    pred = torch.nn.functional.softmax(pred, dim=1)
+    test_loss = loss_fn(pred, y).item()
     
-    # Create tf.data.Dataset object from dataset
-    train_ds = tf.data.Dataset.from_tensor_slices((train_kpis, train_labels))
-    train_ds = train_ds.shuffle(10000).batch(BATCH_SIZE,drop_remainder=True)
-    val_ds = tf.data.Dataset.from_tensor_slices((val_kpis, val_labels))
-    val_ds = val_ds.shuffle(10000).batch(BATCH_SIZE,drop_remainder=True) 
+    pred = pred.argmax(dim=1)
+    y = y.argmax(dim=1)
+    pred = pred.reshape(-1)
+    y = y.reshape(-1)
+    pred = pred.cpu().detach()
+    y = y.cpu().detach()
+    
+    assert pred.shape == y.shape
+    test_f1score.update(pred, y)
+    test_precision.update(pred, y)
+    test_recall.update(pred, y)
+    test_mean_f1score.update(test_f1score.compute())
+    test_mean_precision.update(test_precision.compute())
+    test_mean_reall.update(test_recall.compute())
 
-    # Iterate over train dataset
-    # for kpis, labels in train_ds:
-    #     print(kpis)
-    #     print(kpis.shape)
-    #     print(labels)
-    #     print(labels.shape)
-    #     break
-
-    # # Iterate over validation dataset
-    # for kpis, labels in val_ds:
-    #     print(kpis)
-    #     print(kpis.shape)
-    #     print(labels)
-    #     print(labels.shape)
-    #     break
-
-
-    # print(asd)
-
-    # Create an instance of the model
-    model = FullyConnectedNN(output_size=output_size)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-    # Compile the model with binary_crossentropy loss
-    model.compile(
-        optimizer=optimizer, 
-        loss=WeightedCategoricalCrossentropy(class1_ratio=minority_class_ratio), 
-        metrics=[
-            tf.keras.metrics.Precision(name='precision_0',class_id=0),
-            tf.keras.metrics.Recall(name='recall_0',class_id=0),
-            F1Score(name='f1score_0',class_id=0),
-            tf.keras.metrics.Precision(name='precision_1',class_id=1),
-            tf.keras.metrics.Recall(name='recall_1',class_id=1),
-            F1Score(name='f1score_1',class_id=1)
-            ])
-
-    # Set up the callbacks
-    tensorboard_callback = TensorBoard(log_dir=f'../logs/{current_time}')
-    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-        filepath=f'../logs/{current_time}',
-        save_weights_only=False,
-        monitor='val_loss',
-        mode='min',
-        save_best_only=True
-        )
-
-    # Train the model
-    model.fit(x=train_ds,
-        epochs=1000,
-        verbose=2,
-        callbacks=[
-            tensorboard_callback,
-            model_checkpoint_callback
-            ],
-        initial_epoch=0,
-        validation_data=val_ds,
-        workers=-1,
-        use_multiprocessing=True,)
+print(f"Avg test loss: {test_loss:>8f}")
+for i in range(NUM_CLASSES):
+  test_writer.add_scalar(f'F1_Score_{i}', test_f1score.compute()[i].item(), 0)
+  test_writer.add_scalar(f'Precision_{i}', test_precision.compute()[i].item(), 0)
+  test_writer.add_scalar(f'Recall_{i}', test_recall.compute()[i].item(), 0)
+  test_writer.add_scalar(f'Mean_F1_Score', test_mean_f1score.compute().item(), 0)
+  test_writer.add_scalar(f'Mean_Precision', test_mean_precision.compute().item(), 0)
+  test_writer.add_scalar(f'Mean_Recall', test_mean_reall.compute().item(), 0)
 
 
 
-if __name__ == '__main__':
-    #train_MTGNN()
-    train_FCN_AD()
-    #prepare_solar_data()
-    #main()
+

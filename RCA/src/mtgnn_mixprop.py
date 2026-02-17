@@ -13,7 +13,6 @@ import torch.nn as nn
 from torch.nn import init
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, GATv2Conv
-from torch_geometric.data import Data, Batch
 
 class Linear(nn.Module):
     r"""An implementation of the linear layer, conducting 2D convolution.
@@ -390,15 +389,15 @@ class MTGNNLayer(nn.Module):
         
 
         if gcn_true:
-            # self._mixprop_conv1 = MixProp(
-            #     conv_channels, residual_channels, gcn_depth, dropout, propalpha
-            # )
+            self._mixprop_conv1 = MixProp(
+                conv_channels, residual_channels, gcn_depth, dropout, propalpha
+            )
 
-            # self._mixprop_conv2 = MixProp(
-            #     conv_channels, residual_channels, gcn_depth, dropout, propalpha
-            # )
+            self._mixprop_conv2 = MixProp(
+                conv_channels, residual_channels, gcn_depth, dropout, propalpha
+            )
             
-            self.gcn1 = GCNConv(32, 32, node_dim=1)
+            self.gcn1 = GCNConv(32, 32)
 
         if seq_length > receptive_field:
             self._normalization = LayerNormalization(
@@ -412,12 +411,6 @@ class MTGNNLayer(nn.Module):
                 elementwise_affine=layer_norm_affline,
             )
         self._reset_parameters()
-
-        self.in_conv = nn.Conv2d(
-            in_channels=3,
-            out_channels=1,
-            kernel_size=1,
-        )
 
         self.out_conv = nn.Conv2d(
             in_channels=3,
@@ -468,33 +461,9 @@ class MTGNNLayer(nn.Module):
         # X = F.dropout(X, self._dropout, training=training)
         # X_skip = self._skip_conv(X) + X_skip
         if self._gcn_true:
-            # Permute X to be (batch_size, in_dim, num_nodes, seq_len)
-            X = X.permute(0, 3, 1, 2)
-            X = self.in_conv(X)
-            # Permute X to be (batch_size, seq_len, num_nodes, in_dim)
-            X = X.permute(0, 2, 3, 1)
-            # Squeeze the last dimension
-            X = X.squeeze(3)
-
-            X = X.permute(0,2,1)
-            #X = X[:,:,:,0]
-            
-            from torch_geometric.utils.sparse import dense_to_sparse
-            A_tilde, A_tilde_weights = dense_to_sparse(A_tilde)
-            X = self.gcn1(X, A_tilde, A_tilde_weights)
-            
-            
-            #print(A_tilde.shape)
-
-            # Permute back to (batch_size, in_dim, num_nodes, seq_len)
-            X = X.permute(0, 2, 1)
-            #print(X.shape)
-            
-            # X = self._mixprop_conv1(X, A_tilde) + self._mixprop_conv2(
-            #     X, A_tilde.transpose(1, 0)
-            # )
-
-
+            X = self._mixprop_conv1(X, A_tilde) + self._mixprop_conv2(
+                X, A_tilde.transpose(1, 0)
+            )
             # repeat_range = int((self.batch_size-1) * self.num_nodes)
             # # Create the repeating increasing graph
             # repeating_tensor = torch.arange(0,repeat_range+1,self.num_nodes) 
@@ -541,15 +510,10 @@ class MTGNNLayer(nn.Module):
         #print(asd)
 
         # Permute X to be (batch_size, in_dim, num_nodes, seq_len)
-        # X = X.permute(0, 3, 1, 2)
-        # X = self.out_conv(X)
-        # # Permute X to be (batch_size, seq_len, num_nodes, in_dim)
-        # X = X.permute(0, 2, 3, 1)
-        # Add additional dimension at the end
-        X = X.unsqueeze(3)
-        #print(X.size())
-        #print(asd)
-
+        X = X.permute(0, 3, 1, 2)
+        X = self.out_conv(X)
+        # Permute X to be (batch_size, seq_len, num_nodes, in_dim)
+        X = X.permute(0, 2, 3, 1)
         return X, X_skip
 
 
